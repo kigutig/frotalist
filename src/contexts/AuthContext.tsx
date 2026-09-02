@@ -77,6 +77,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     let mounted = true
 
     async function initAuth() {
+      // Limpa qualquer dado demo salvo anteriormente
+      localStorage.removeItem('demo_user')
       if (IS_DEMO_MODE) {
         // Check if there's a persisted demo session
         const stored = localStorage.getItem('demo_user')
