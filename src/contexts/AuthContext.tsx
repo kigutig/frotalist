@@ -8,7 +8,6 @@ import React, {
 import type { Session } from '@supabase/supabase-js'
 import { supabase } from '../lib/supabase'
 import type { User, UserRole } from '../types'
-import { MOCK_USERS } from '../lib/mock-data'
 
 interface AuthContextType {
   user: User | null
@@ -20,168 +19,140 @@ interface AuthContextType {
   isOperator: boolean
   isDriver: boolean
   signIn: (email: string, password: string) => Promise<{ error?: string }>
-  signUp: (data: { name: string; email: string; password: string; role?: UserRole }) => Promise<{ error?: string }>
+  signUp: (data: { name: string; email: string; password: string }) => Promise<{ error?: string }>
   signOut: () => Promise<void>
   hasPermission: (requiredRoles: UserRole[]) => boolean
 }
 
 const AuthContext = createContext<AuthContextType | null>(null)
 
-// Demo mode: no real Supabase connection
-const IS_DEMO_MODE =
-  !import.meta.env.VITE_SUPABASE_URL ||
-  import.meta.env.VITE_SUPABASE_URL === 'https://placeholder.supabase.co'
-
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(null)
   const [session, setSession] = useState<Session | null>(null)
   const [isLoading, setIsLoading] = useState(true)
 
-  // Load user profile from DB or fallback to auth metadata
-  const loadUserProfile = useCallback(async (userId: string, userEmail?: string, userMetadata?: any): Promise<User> => {
-    const emailLower = (userEmail || '').trim().toLowerCase()
-    const isAdminUser = emailLower === 'kigutifenix@gmail.com'
-    const fallbackName = userMetadata?.name || (emailLower ? emailLower.split('@')[0] : 'Usuário')
-    const fallbackRole: UserRole = isAdminUser ? 'admin' : (userMetadata?.role || 'operator')
+  // Função auxiliar para mapear o usuário autenticado para o formato User do app
+  const buildUserProfile = useCallback(async (authUser: { id: string; email?: string; user_metadata?: any }): Promise<User> => {
+    const emailLower = (authUser.email || '').trim().toLowerCase()
+    const isMainAdmin = emailLower === 'kigutifenix@gmail.com'
+    const role: UserRole = isMainAdmin ? 'admin' : (authUser.user_metadata?.role || 'operator')
+    const name: string = authUser.user_metadata?.name || (emailLower ? emailLower.split('@')[0] : 'Usuário')
 
+    // Tenta buscar da tabela public.users
     try {
       const { data, error } = await supabase
         .from('users')
         .select('*')
-        .eq('id', userId)
+        .eq('id', authUser.id)
         .maybeSingle()
 
       if (!error && data) {
         const profile = data as User
-        if (isAdminUser) {
+        if (isMainAdmin && profile.role !== 'admin') {
           profile.role = 'admin'
         }
         return profile
       }
-
-      // Se não existir na tabela public.users, cria automaticamente
-      const newProfile: User = {
-        id: userId,
-        name: fallbackName,
-        email: userEmail || '',
-        role: fallbackRole,
-        status: 'active',
-        created_at: new Date().toISOString(),
-        updated_at: new Date().toISOString(),
-      }
-
-      // Tenta persistir na tabela se ela existir
-      try {
-        await supabase.from('users').upsert(newProfile)
-      } catch (upsertErr) {
-        console.warn('Nota: tabela users ainda não criada no Supabase:', upsertErr)
-      }
-
-      return newProfile
-    } catch {
-      return {
-        id: userId,
-        name: fallbackName,
-        email: userEmail || '',
-        role: fallbackRole,
-        status: 'active',
-        created_at: new Date().toISOString(),
-        updated_at: new Date().toISOString(),
-      }
+    } catch (e) {
+      console.warn('Erro ao ler public.users:', e)
     }
+
+    // Se não existir na tabela public.users, cria o registro no banco agora
+    const profile: User = {
+      id: authUser.id,
+      name,
+      email: authUser.email || '',
+      role,
+      status: 'active',
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+    }
+
+    try {
+      await supabase.from('users').upsert(profile)
+    } catch (e) {
+      console.warn('Erro ao inserir em public.users:', e)
+    }
+
+    return profile
   }, [])
 
+  // Inicialização e escuta da sessão real do Supabase
   useEffect(() => {
     let mounted = true
 
-    async function initAuth() {
-      // Limpa qualquer dado demo salvo anteriormente
-      localStorage.removeItem('demo_user')
-      if (IS_DEMO_MODE) {
-        // Check if there's a persisted demo session
-        const stored = localStorage.getItem('demo_user')
-        if (stored) {
-          try {
-            const parsed = JSON.parse(stored) as User
-            if (mounted) {
-              setUser(parsed)
-            }
-          } catch {
-            localStorage.removeItem('demo_user')
-          }
+    async function initSession() {
+      try {
+        const { data: { session: currentSession }, error } = await supabase.auth.getSession()
+        if (error) {
+          console.error('Erro getSession:', error.message)
         }
+
+        if (mounted && currentSession?.user) {
+          setSession(currentSession)
+          const profile = await buildUserProfile(currentSession.user)
+          if (mounted) setUser(profile)
+        }
+      } catch (err) {
+        console.error('Falha ao inicializar autenticação:', err)
+      } finally {
         if (mounted) setIsLoading(false)
-        return
       }
+    }
 
-      // Real Supabase auth
-      const { data: { session: existingSession } } = await supabase.auth.getSession()
-      if (mounted && existingSession) {
-        setSession(existingSession)
-        const profile = await loadUserProfile(
-          existingSession.user.id,
-          existingSession.user.email,
-          existingSession.user.user_metadata
-        )
+    void initSession()
+
+    // Escuta mudanças de auth (login, logout, refresh)
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (_event, newSession) => {
+      if (!mounted) return
+      setSession(newSession)
+
+      if (newSession?.user) {
+        const profile = await buildUserProfile(newSession.user)
         if (mounted) setUser(profile)
+      } else {
+        if (mounted) setUser(null)
       }
-      if (mounted) setIsLoading(false)
+    })
 
-      const { data: { subscription } } = supabase.auth.onAuthStateChange(async (_event, newSession) => {
-        if (!mounted) return
-        setSession(newSession)
-        if (newSession) {
-          const profile = await loadUserProfile(
-            newSession.user.id,
-            newSession.user.email,
-            newSession.user.user_metadata
-          )
-          setUser(profile)
-        } else {
-          setUser(null)
-        }
-      })
-
-      return () => subscription.unsubscribe()
+    return () => {
+      mounted = false
+      subscription.unsubscribe()
     }
+  }, [buildUserProfile])
 
-    void initAuth()
-    return () => { mounted = false }
-  }, [loadUserProfile])
-
+  // LOGIN REAL NO SUPABASE
   const signIn = useCallback(async (email: string, password: string): Promise<{ error?: string }> => {
-    try {
-      const { data, error } = await supabase.auth.signInWithPassword({
-        email: email.trim(),
-        password,
-      })
+    const cleanEmail = email.trim().toLowerCase()
 
-      if (error) {
-        if (error.message.includes('Invalid login credentials')) {
-          return { error: 'Email ou senha incorretos. Caso ainda não tenha conta, cadastre-se na aba "Criar Conta".' }
-        }
-        if (error.message.includes('Email not confirmed')) {
-          return { error: 'Email não confirmado. Verifique a confirmação no painel do Supabase.' }
-        }
-        return { error: error.message }
+    const { data, error } = await supabase.auth.signInWithPassword({
+      email: cleanEmail,
+      password,
+    })
+
+    if (error) {
+      console.error('Supabase signInWithPassword error:', error)
+      if (error.message.includes('Invalid login credentials')) {
+        return { error: 'Email ou senha incorretos. Caso ainda não tenha conta, crie seu acesso na aba "Criar Conta".' }
       }
-
-      if (data?.user) {
-        setSession(data.session)
-        const profile = await loadUserProfile(
-          data.user.id,
-          data.user.email,
-          data.user.user_metadata
-        )
-        setUser(profile)
+      if (error.message.includes('Email not confirmed')) {
+        return { error: 'Email não confirmado. Desative a confirmação de email nas configurações de Auth do Supabase ou confirme seu email.' }
       }
-
-      return {}
-    } catch (err: unknown) {
-      return { error: err instanceof Error ? err.message : 'Erro ao realizar login' }
+      return { error: error.message }
     }
-  }, [loadUserProfile])
 
+    if (!data.session || !data.user) {
+      return { error: 'Sessão não retornada pelo Supabase. Verifique se o usuário está ativo.' }
+    }
+
+    setSession(data.session)
+    const profile = await buildUserProfile(data.user)
+    setUser(profile)
+
+    return {}
+  }, [buildUserProfile])
+
+  // CADASTRO REAL NO SUPABASE
   const signUp = useCallback(async ({
     name,
     email,
@@ -190,71 +161,75 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     name: string
     email: string
     password: string
-    role?: UserRole
   }): Promise<{ error?: string }> => {
-    // kigutifenix@gmail.com é sempre administrador. Demais usuários são operadores por padrão.
-    const assignedRole: UserRole =
-      email.trim().toLowerCase() === 'kigutifenix@gmail.com' ? 'admin' : 'operator'
+    const cleanEmail = email.trim().toLowerCase()
+    const isMainAdmin = cleanEmail === 'kigutifenix@gmail.com'
+    const role: UserRole = isMainAdmin ? 'admin' : 'operator'
 
-    if (IS_DEMO_MODE) {
-      const newUser: User = {
-        id: 'usr_' + Date.now(),
-        name,
-        email,
-        role: assignedRole,
-        status: 'active',
-        created_at: new Date().toISOString(),
-        updated_at: new Date().toISOString(),
+    // 1. Cria o usuário diretamente no Supabase Auth
+    const { data, error } = await supabase.auth.signUp({
+      email: cleanEmail,
+      password,
+      options: {
+        data: {
+          name,
+          role,
+        },
+      },
+    })
+
+    if (error) {
+      console.error('Supabase signUp error:', error)
+      if (error.message.includes('User already registered')) {
+        return { error: 'Este email já está cadastrado. Tente entrar na aba "Entrar" ou redefinir a senha.' }
       }
-      setUser(newUser)
-      localStorage.setItem('demo_user', JSON.stringify(newUser))
-      return {}
+      return { error: error.message }
     }
 
+    if (!data.user) {
+      return { error: 'Falha ao criar usuário no Supabase. Tente novamente.' }
+    }
+
+    // 2. Se o Supabase retornou o usuário criado, grava na tabela public.users
     try {
-      const { data, error } = await supabase.auth.signUp({
-        email,
-        password,
-        options: {
-          data: {
-            name,
-            role: assignedRole,
-          },
-        },
+      await supabase.from('users').upsert({
+        id: data.user.id,
+        name,
+        email: cleanEmail,
+        role,
+        status: 'active',
       })
+    } catch (e) {
+      console.warn('Erro ao inserir em public.users no cadastro:', e)
+    }
 
-      if (error) {
-        return { error: error.message }
-      }
-
-      if (data.user) {
-        // Create user profile in public.users table
-        const { error: profileError } = await supabase.from('users').upsert({
-          id: data.user.id,
-          name,
-          email,
-          role: assignedRole,
-          status: 'active',
-        })
-
-        if (profileError) {
-          console.warn('Perfil pendente de autorização no DB:', profileError.message)
+    // 3. Se o Supabase não retornou sessão imediata (por exemplo, aguardando confirmação de email)
+    if (!data.session) {
+      // Tenta logar imediatamente com as credenciais cadastradas
+      const loginResult = await signIn(cleanEmail, password)
+      if (loginResult.error) {
+        return {
+          error: 'Conta criada no Supabase! Porém o Supabase exige confirmação de email: ' + loginResult.error,
         }
       }
-
       return {}
-    } catch (err: unknown) {
-      return { error: err instanceof Error ? err.message : 'Erro ao cadastrar usuário' }
     }
-  }, [])
 
+    // Se já retornou sessão, atualiza o estado
+    setSession(data.session)
+    const profile = await buildUserProfile(data.user)
+    setUser(profile)
+
+    return {}
+  }, [buildUserProfile, signIn])
+
+  // LOGOUT REAL NO SUPABASE
   const signOut = useCallback(async () => {
-    if (IS_DEMO_MODE) {
-      setUser(null)
-      localStorage.removeItem('demo_user')
-      return
+    try {
+      await supabase.auth.signOut()
+    } catch (e) {
+      console.warn('Erro signOut:', e)
     }
-    await supabase.auth.signOut()
     setUser(null)
     setSession(null)
   }, [])
