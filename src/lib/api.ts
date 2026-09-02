@@ -200,21 +200,59 @@ export const checklistsApi = {
   },
 
   async getById(id: string): Promise<Checklist | null> {
-    const { data, error } = await supabase
-      .from('checklists')
-      .select(`
-        *,
-        truck:trucks(*),
-        driver:drivers(*),
-        items:checklist_items(*),
-        occurrences:occurrences(*),
-        photos:checklist_photos(*)
-      `)
-      .eq('id', id)
-      .single()
+    try {
+      // 1. Busca os dados do checklist
+      let checklistData: any = null
+      const { data: ckl, error: cklError } = await supabase
+        .from('checklists')
+        .select(`
+          *,
+          truck:trucks(*),
+          driver:drivers(*)
+        `)
+        .eq('id', id)
+        .maybeSingle()
 
-    if (error || !data) return null
-    return data as Checklist
+      checklistData = ckl
+
+      if (cklError || !checklistData) {
+        // Fallback simples
+        const { data: simpleChecklist } = await supabase
+          .from('checklists')
+          .select('*')
+          .eq('id', id)
+          .maybeSingle()
+        if (!simpleChecklist) return null
+
+        // Carrega caminhão e motorista avulsos
+        const [{ data: trk }, { data: drv }] = await Promise.all([
+          supabase.from('trucks').select('*').eq('id', simpleChecklist.truck_id).maybeSingle(),
+          supabase.from('drivers').select('*').eq('id', simpleChecklist.driver_id).maybeSingle(),
+        ])
+        checklistData = { ...simpleChecklist, truck: trk, driver: drv }
+      }
+
+      // 2. Busca os itens do checklist
+      const { data: itemsData } = await supabase
+        .from('checklist_items')
+        .select('*')
+        .eq('checklist_id', id)
+
+      // 3. Busca ocorrências se houver
+      const { data: occurrencesData } = await supabase
+        .from('occurrences')
+        .select('*')
+        .eq('checklist_id', id)
+
+      return {
+        ...checklistData,
+        items: itemsData || [],
+        occurrences: occurrencesData || [],
+      } as Checklist
+    } catch (err) {
+      console.error('Erro ao buscar checklist por ID:', err)
+      return null
+    }
   },
 
   async create(checklist: Partial<Checklist>): Promise<{ data?: Checklist; error?: string }> {

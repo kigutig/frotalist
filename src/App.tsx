@@ -10,6 +10,7 @@ import { DriversPage } from './pages/drivers/DriversPage'
 import { TripsPage } from './pages/trips/TripsPage'
 import { ChecklistsPage } from './pages/checklists/ChecklistsPage'
 import { ChecklistWizard } from './pages/checklists/ChecklistWizard'
+import { ChecklistDetailPage } from './pages/checklists/ChecklistDetailPage'
 import { OccurrencesPage } from './pages/occurrences/OccurrencesPage'
 import { MaintenancePage } from './pages/maintenance/MaintenancePage'
 import { HistoryPage } from './pages/history/HistoryPage'
@@ -55,7 +56,7 @@ export default function App() {
             <Route path="trips/:id" element={<TripsPage />} />
             <Route path="checklists" element={<ChecklistsPage />} />
             <Route path="checklists/new" element={<ChecklistWizard />} />
-            <Route path="checklists/:id" element={<ChecklistsPage />} />
+            <Route path="checklists/:id" element={<ChecklistDetailPage />} />
             <Route path="occurrences" element={<OccurrencesPage />} />
             <Route path="maintenance" element={<MaintenancePage />} />
             <Route path="history" element={<HistoryPage />} />
