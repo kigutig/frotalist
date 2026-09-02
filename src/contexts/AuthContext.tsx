@@ -37,40 +37,57 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [session, setSession] = useState<Session | null>(null)
   const [isLoading, setIsLoading] = useState(true)
 
-  // Load user profile from DB or mock
-  const loadUserProfile = useCallback(async (userId: string, userEmail?: string): Promise<User | null> => {
-    if (IS_DEMO_MODE) {
-      // Return mock user based on email
-      const found = MOCK_USERS.find((u) => u.email === userEmail) ?? MOCK_USERS[0]
-      return found
-    }
+  // Load user profile from DB or fallback to auth metadata
+  const loadUserProfile = useCallback(async (userId: string, userEmail?: string, userMetadata?: any): Promise<User> => {
+    const emailLower = (userEmail || '').trim().toLowerCase()
+    const isAdminUser = emailLower === 'kigutifenix@gmail.com'
+    const fallbackName = userMetadata?.name || (emailLower ? emailLower.split('@')[0] : 'Usuário')
+    const fallbackRole: UserRole = isAdminUser ? 'admin' : (userMetadata?.role || 'operator')
+
     try {
       const { data, error } = await supabase
         .from('users')
         .select('*')
         .eq('id', userId)
-        .single()
-      if (error || !data) {
-        if (userEmail?.toLowerCase() === 'kigutifenix@gmail.com') {
-          return {
-            id: userId,
-            name: 'Administrador',
-            email: userEmail,
-            role: 'admin',
-            status: 'active',
-            created_at: new Date().toISOString(),
-            updated_at: new Date().toISOString(),
-          }
+        .maybeSingle()
+
+      if (!error && data) {
+        const profile = data as User
+        if (isAdminUser) {
+          profile.role = 'admin'
         }
-        return null
+        return profile
       }
-      const profile = data as User
-      if (profile.email.toLowerCase() === 'kigutifenix@gmail.com') {
-        profile.role = 'admin'
+
+      // Se não existir na tabela public.users, cria automaticamente
+      const newProfile: User = {
+        id: userId,
+        name: fallbackName,
+        email: userEmail || '',
+        role: fallbackRole,
+        status: 'active',
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
       }
-      return profile
+
+      // Tenta persistir na tabela se ela existir
+      try {
+        await supabase.from('users').upsert(newProfile)
+      } catch (upsertErr) {
+        console.warn('Nota: tabela users ainda não criada no Supabase:', upsertErr)
+      }
+
+      return newProfile
     } catch {
-      return null
+      return {
+        id: userId,
+        name: fallbackName,
+        email: userEmail || '',
+        role: fallbackRole,
+        status: 'active',
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      }
     }
   }, [])
 
@@ -103,7 +120,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         setSession(existingSession)
         const profile = await loadUserProfile(
           existingSession.user.id,
-          existingSession.user.email
+          existingSession.user.email,
+          existingSession.user.user_metadata
         )
         if (mounted) setUser(profile)
       }
@@ -113,7 +131,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         if (!mounted) return
         setSession(newSession)
         if (newSession) {
-          const profile = await loadUserProfile(newSession.user.id, newSession.user.email)
+          const profile = await loadUserProfile(
+            newSession.user.id,
+            newSession.user.email,
+            newSession.user.user_metadata
+          )
           setUser(profile)
         } else {
           setUser(null)
@@ -139,13 +161,18 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           return { error: 'Email ou senha incorretos. Caso ainda não tenha conta, cadastre-se na aba "Criar Conta".' }
         }
         if (error.message.includes('Email not confirmed')) {
-          return { error: 'Email não confirmado. Verifique sua caixa de entrada no Supabase.' }
+          return { error: 'Email não confirmado. Verifique a confirmação no painel do Supabase.' }
         }
         return { error: error.message }
       }
 
       if (data?.user) {
-        const profile = await loadUserProfile(data.user.id, data.user.email)
+        setSession(data.session)
+        const profile = await loadUserProfile(
+          data.user.id,
+          data.user.email,
+          data.user.user_metadata
+        )
         setUser(profile)
       }
 
