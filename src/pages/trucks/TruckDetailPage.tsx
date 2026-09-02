@@ -1,19 +1,19 @@
+import { useState, useEffect } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import {
   ArrowLeft,
   Truck,
   Edit2,
   ClipboardList,
-  AlertTriangle,
-  History,
   Wrench,
   MapPin,
   Calendar,
   Gauge,
   Package,
+  Loader2,
 } from 'lucide-react'
-import { Card, CardHeader, CardBody, Button, Badge } from '../../components/ui'
-import { MOCK_TRUCKS, MOCK_TRIPS, MOCK_OCCURRENCES, MOCK_MAINTENANCE } from '../../lib/mock-data'
+import { Card, CardHeader, CardBody, Button } from '../../components/ui'
+import { trucksApi, tripsApi, occurrencesApi, maintenanceApi } from '../../lib/api'
 import {
   TRUCK_STATUS_LABELS,
   TRUCK_STATUS_COLORS,
@@ -23,12 +23,44 @@ import {
   formatDateTime,
   cn,
 } from '../../lib/utils'
-import type { TruckStatus, OccurrenceSeverity } from '../../types'
+import type { Truck as TruckType, TruckStatus, OccurrenceSeverity, Trip, Occurrence, Maintenance } from '../../types'
 
 export function TruckDetailPage() {
   const { id } = useParams<{ id: string }>()
   const navigate = useNavigate()
-  const truck = MOCK_TRUCKS.find((t) => t.id === id)
+  const [truck, setTruck] = useState<TruckType | null>(null)
+  const [trips, setTrips] = useState<Trip[]>([])
+  const [occurrences, setOccurrences] = useState<Occurrence[]>([])
+  const [maintenance, setMaintenance] = useState<Maintenance[]>([])
+  const [loading, setLoading] = useState(true)
+
+  useEffect(() => {
+    async function loadData() {
+      if (!id) return
+      setLoading(true)
+      const [tData, allTrips, allOccs, allMaint] = await Promise.all([
+        trucksApi.getById(id),
+        tripsApi.getAll(),
+        occurrencesApi.getAll(),
+        maintenanceApi.getAll(),
+      ])
+      setTruck(tData)
+      setTrips(allTrips.filter((tr) => tr.truck_id === id))
+      setOccurrences(allOccs.filter((o) => o.truck_id === id))
+      setMaintenance(allMaint.filter((m) => m.truck_id === id))
+      setLoading(false)
+    }
+    void loadData()
+  }, [id])
+
+  if (loading) {
+    return (
+      <div className="flex h-64 items-center justify-center text-slate-500">
+        <Loader2 className="h-6 w-6 animate-spin mr-2" />
+        <span>Carregando dados do veículo...</span>
+      </div>
+    )
+  }
 
   if (!truck) {
     return (
@@ -43,10 +75,7 @@ export function TruckDetailPage() {
   }
 
   const status = truck.status as TruckStatus
-  const colors = TRUCK_STATUS_COLORS[status]
-  const truckTrips = MOCK_TRIPS.filter((t) => t.truck_id === id)
-  const truckOccurrences = MOCK_OCCURRENCES.filter((o) => o.truck_id === id)
-  const truckMaintenance = MOCK_MAINTENANCE.filter((m) => m.truck_id === id)
+  const colors = TRUCK_STATUS_COLORS[status] || { dot: 'bg-slate-400', badge: 'bg-slate-100 text-slate-700' }
 
   return (
     <div className="space-y-6">
@@ -88,9 +117,6 @@ export function TruckDetailPage() {
               <Button variant="outline" leftIcon={ClipboardList} onClick={() => navigate(`/checklists/new?truck=${truck.id}`)}>
                 Novo Checklist
               </Button>
-              <Button variant="primary" leftIcon={Edit2}>
-                Editar
-              </Button>
             </div>
           </div>
         </div>
@@ -105,12 +131,12 @@ export function TruckDetailPage() {
             </CardHeader>
             <CardBody className="space-y-4">
               {[
-                { label: 'Placa', value: truck.plate, icon: Truck },
-                { label: 'Marca / Modelo', value: `${truck.brand} ${truck.model}`, icon: Truck },
-                { label: 'Tipo', value: truck.type, icon: Package },
-                { label: 'Capacidade', value: truck.capacity ?? '—', icon: Package },
-                { label: 'Ano', value: truck.year.toString(), icon: Calendar },
-                { label: 'Quilometragem', value: formatMileage(truck.mileage), icon: Gauge },
+                { label: 'Placa', value: truck.plate },
+                { label: 'Marca / Modelo', value: `${truck.brand} ${truck.model}` },
+                { label: 'Tipo', value: truck.type },
+                { label: 'Capacidade', value: truck.capacity ?? '—' },
+                { label: 'Ano', value: truck.year.toString() },
+                { label: 'Quilometragem', value: formatMileage(truck.mileage) },
               ].map((item) => (
                 <div key={item.label} className="flex items-center justify-between">
                   <span className="text-sm text-slate-500">{item.label}</span>
@@ -131,12 +157,11 @@ export function TruckDetailPage() {
             <CardHeader>
               <h3 className="font-semibold text-slate-800">Resumo</h3>
             </CardHeader>
-            <CardBody className="grid grid-cols-2 gap-3">
+            <CardBody className="grid grid-cols-3 gap-3">
               {[
-                { label: 'Viagens', value: truckTrips.length, color: 'blue' },
-                { label: 'Ocorrências', value: truckOccurrences.length, color: 'orange' },
-                { label: 'Manutenções', value: truckMaintenance.length, color: 'yellow' },
-                { label: 'Checklists', value: truckTrips.length * 2, color: 'green' },
+                { label: 'Viagens', value: trips.length },
+                { label: 'Ocorrências', value: occurrences.length },
+                { label: 'Manutenções', value: maintenance.length },
               ].map((s) => (
                 <div key={s.label} className="rounded-xl bg-slate-50 p-3 text-center">
                   <p className="text-2xl font-bold text-slate-800">{s.value}</p>
@@ -152,21 +177,16 @@ export function TruckDetailPage() {
           {/* Occurrences */}
           <Card>
             <CardHeader>
-              <div className="flex items-center justify-between">
-                <h3 className="font-semibold text-slate-800">Ocorrências</h3>
-                <Button variant="ghost" size="sm" onClick={() => navigate(`/occurrences?truck=${truck.id}`)}>
-                  Ver todas
-                </Button>
-              </div>
+              <h3 className="font-semibold text-slate-800">Ocorrências</h3>
             </CardHeader>
             <CardBody className="p-0">
-              {truckOccurrences.length === 0 ? (
+              {occurrences.length === 0 ? (
                 <div className="py-8 text-center text-sm text-slate-400">Nenhuma ocorrência registrada</div>
               ) : (
                 <ul className="divide-y divide-slate-100">
-                  {truckOccurrences.map((occ) => {
+                  {occurrences.map((occ) => {
                     const sev = occ.severity as OccurrenceSeverity
-                    const sevColors = OCCURRENCE_SEVERITY_COLORS[sev]
+                    const sevColors = OCCURRENCE_SEVERITY_COLORS[sev] || { badge: 'bg-slate-100 text-slate-700' }
                     return (
                       <li key={occ.id} className="flex items-start gap-3 px-5 py-4">
                         <span
@@ -192,19 +212,14 @@ export function TruckDetailPage() {
           {/* Trip history */}
           <Card>
             <CardHeader>
-              <div className="flex items-center justify-between">
-                <h3 className="font-semibold text-slate-800">Histórico de Viagens</h3>
-                <Button variant="ghost" size="sm" onClick={() => navigate(`/trips?truck=${truck.id}`)}>
-                  Ver todas
-                </Button>
-              </div>
+              <h3 className="font-semibold text-slate-800">Histórico de Viagens</h3>
             </CardHeader>
             <CardBody className="p-0">
-              {truckTrips.length === 0 ? (
+              {trips.length === 0 ? (
                 <div className="py-8 text-center text-sm text-slate-400">Nenhuma viagem registrada</div>
               ) : (
                 <ul className="divide-y divide-slate-100">
-                  {truckTrips.map((trip) => (
+                  {trips.map((trip) => (
                     <li
                       key={trip.id}
                       className="flex cursor-pointer items-start gap-3 px-5 py-4 hover:bg-slate-50"
@@ -231,26 +246,21 @@ export function TruckDetailPage() {
           {/* Maintenance */}
           <Card>
             <CardHeader>
-              <div className="flex items-center justify-between">
-                <h3 className="font-semibold text-slate-800">Manutenções</h3>
-                <Button variant="ghost" size="sm" onClick={() => navigate(`/maintenance?truck=${truck.id}`)}>
-                  Ver todas
-                </Button>
-              </div>
+              <h3 className="font-semibold text-slate-800">Manutenções</h3>
             </CardHeader>
             <CardBody className="p-0">
-              {truckMaintenance.length === 0 ? (
+              {maintenance.length === 0 ? (
                 <div className="py-8 text-center text-sm text-slate-400">Nenhuma manutenção registrada</div>
               ) : (
                 <ul className="divide-y divide-slate-100">
-                  {truckMaintenance.map((m) => (
+                  {maintenance.map((m) => (
                     <li key={m.id} className="flex items-start gap-3 px-5 py-4">
                       <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-yellow-100">
                         <Wrench className="h-4 w-4 text-yellow-600" />
                       </div>
                       <div className="min-w-0 flex-1">
                         <p className="text-sm font-medium text-slate-700">{m.description}</p>
-                        <p className="text-xs text-slate-400">{m.date} · {m.workshop}</p>
+                        <p className="text-xs text-slate-400">{m.date} · {m.workshop || 'Oficina'}</p>
                       </div>
                     </li>
                   ))}

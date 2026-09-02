@@ -1,11 +1,12 @@
-import { useState } from 'react'
-import { Truck, CheckCircle2, AlertTriangle, ShieldAlert, Lock } from 'lucide-react'
+import { useState, useEffect } from 'react'
+import { Truck, CheckCircle2, ShieldAlert, Lock } from 'lucide-react'
 import { Button, Alert } from '../../../components/ui'
 import type { StepProps } from './shared'
-import { MOCK_TRUCKS, MOCK_DRIVERS } from '../../../lib/mock-data'
+import { trucksApi, driversApi, checklistsApi, tripsApi } from '../../../lib/api'
 import { formatMileage } from '../../../lib/utils'
 import { DEPARTURE_CHECKLIST_ITEMS } from '../../../lib/checklist-items'
 import { useAuth } from '../../../contexts/AuthContext'
+import type { Truck as TruckType, Driver } from '../../../types'
 
 interface Step11Props extends StepProps {
   hasBlockingIssue: boolean
@@ -14,13 +15,26 @@ interface Step11Props extends StepProps {
 
 export function Step11_Release({ form, hasBlockingIssue, onComplete }: Step11Props) {
   const { isAdmin, user } = useAuth()
+  const [truck, setTruck] = useState<TruckType | null>(null)
+  const [driver, setDriver] = useState<Driver | null>(null)
   const [confirmOpen, setConfirmOpen] = useState(false)
   const [releaseJustification, setReleaseJustification] = useState('')
   const [isReleasing, setIsReleasing] = useState(false)
   const [released, setReleased] = useState(false)
 
-  const truck = MOCK_TRUCKS.find((t) => t.id === form.truck_id)
-  const driver = MOCK_DRIVERS.find((d) => d.id === form.driver_id)
+  useEffect(() => {
+    async function loadEntities() {
+      if (form.truck_id) {
+        const t = await trucksApi.getById(form.truck_id)
+        setTruck(t)
+      }
+      if (form.driver_id) {
+        const d = await driversApi.getById(form.driver_id)
+        setDriver(d)
+      }
+    }
+    void loadEntities()
+  }, [form.truck_id, form.driver_id])
 
   const totalItems = DEPARTURE_CHECKLIST_ITEMS.length
   const okCount = Object.values(form.items).filter((s) => s === 'ok').length
@@ -29,8 +43,61 @@ export function Step11_Release({ form, hasBlockingIssue, onComplete }: Step11Pro
 
   async function handleRelease() {
     setIsReleasing(true)
-    // Simulate API call
-    await new Promise((r) => setTimeout(r, 1500))
+    
+    // 1. Salvar checklist no Supabase
+    const { data: newChecklist, error: cklError } = await checklistsApi.create({
+      truck_id: form.truck_id,
+      driver_id: form.driver_id,
+      type: 'departure',
+      status: hasBlockingIssue ? 'approved' : 'released',
+      started_at: new Date().toISOString(),
+      completed_at: new Date().toISOString(),
+      released_at: new Date().toISOString(),
+      mileage: form.mileage,
+      destination: form.destination,
+      cargo_volumes: form.cargo_volumes,
+      cargo_notes: form.cargo_notes,
+      notes: form.notes,
+      release_justification: releaseJustification || undefined,
+      driver_signature: form.driver_signature,
+      responsible_signature: form.responsible_signature,
+      responsible_name: form.responsible_name,
+    })
+
+    if (!cklError && newChecklist) {
+      // 2. Salvar os itens verificados
+      const itemsToSave = Object.entries(form.items).map(([key, status]) => {
+        const def = DEPARTURE_CHECKLIST_ITEMS.find((i) => i.key === key)
+        return {
+          checklist_id: newChecklist.id,
+          category: def?.category || 'geral',
+          item_key: key,
+          item_label: def?.label || key,
+          status,
+          observation: form.item_observations[key] || undefined,
+          is_required: def?.is_required || false,
+        }
+      })
+      if (itemsToSave.length > 0) {
+        await checklistsApi.saveItems(itemsToSave)
+      }
+
+      // 3. Criar a viagem correspondente
+      await tripsApi.create({
+        truck_id: form.truck_id,
+        driver_id: form.driver_id,
+        departure_checklist_id: newChecklist.id,
+        origin: 'Pátio Central',
+        destination: form.destination,
+        departure_at: new Date().toISOString(),
+        departure_mileage: form.mileage,
+        status: 'in_route',
+      })
+
+      // 4. Atualizar status do caminhão para em rota
+      await trucksApi.update(form.truck_id, { status: 'in_route', mileage: form.mileage })
+    }
+
     setIsReleasing(false)
     setConfirmOpen(false)
     setReleased(true)
@@ -42,9 +109,9 @@ export function Step11_Release({ form, hasBlockingIssue, onComplete }: Step11Pro
         <div className="mb-4 flex h-20 w-20 items-center justify-center rounded-full bg-green-100">
           <CheckCircle2 className="h-10 w-10 text-green-600" />
         </div>
-        <h3 className="text-2xl font-bold text-green-700">Caminhão Liberado!</h3>
+        <h3 className="text-2xl font-bold text-green-700">Caminhão Liberado com Sucesso!</h3>
         <p className="mt-2 text-slate-600">
-          O checklist foi concluído e o caminhão foi liberado para saída.
+          O checklist e a viagem foram registrados no banco de dados.
         </p>
         <div className="mt-6 w-full max-w-sm rounded-xl border border-green-200 bg-green-50 p-5 text-left space-y-2">
           <p className="text-sm text-green-800">
@@ -63,7 +130,7 @@ export function Step11_Release({ form, hasBlockingIssue, onComplete }: Step11Pro
             🕐 Liberado em: <strong>{new Date().toLocaleString('pt-BR')}</strong>
           </p>
           <p className="text-sm text-green-800">
-            👤 Por: <strong>{user?.name}</strong>
+            👤 Por: <strong>{user?.name || user?.email}</strong>
           </p>
         </div>
         <Button
@@ -71,7 +138,7 @@ export function Step11_Release({ form, hasBlockingIssue, onComplete }: Step11Pro
           className="mt-6"
           onClick={onComplete}
         >
-          Concluir e voltar
+          Concluir e Voltar ao Início
         </Button>
       </div>
     )
@@ -121,13 +188,13 @@ export function Step11_Release({ form, hasBlockingIssue, onComplete }: Step11Pro
               <p className="font-bold text-slate-800">{totalItems}</p>
             </div>
             <div>
-              <p className="text-xs text-slate-500">Itens OK / N/A / Não OK</p>
+              <p className="text-xs text-slate-500">Status dos Itens</p>
               <p className="font-bold text-slate-800">
-                <span className="text-green-600">{okCount}</span>
-                {' / '}
-                <span className="text-slate-500">{naCount}</span>
-                {' / '}
-                <span className="text-red-600">{notOkCount}</span>
+                <span className="text-green-600">{okCount} OK</span>
+                {' · '}
+                <span className="text-slate-500">{naCount} N/A</span>
+                {' · '}
+                <span className="text-red-600">{notOkCount} Não OK</span>
               </p>
             </div>
           </div>
@@ -139,19 +206,19 @@ export function Step11_Release({ form, hasBlockingIssue, onComplete }: Step11Pro
             <ShieldAlert className="mx-auto mb-3 h-10 w-10 text-red-600" />
             <p className="text-lg font-bold text-red-700">🔴 CAMINHÃO NÃO LIBERADO</p>
             <p className="mt-2 text-sm text-red-600">
-              Existem pendências obrigatórias que precisam ser resolvidas antes da saída.
+              Existem pendências obrigatórias marcadas como "Não OK" que impedem a saída do caminhão.
             </p>
 
             {isAdmin && (
               <div className="mt-4 rounded-lg border border-red-300 bg-white p-4 text-left">
                 <p className="text-sm font-semibold text-red-700">
-                  ⚠️ Liberação Excepcional (somente Administrador)
+                  ⚠️ Liberação Excepcional (Apenas Administrador)
                 </p>
                 <p className="mt-1 text-xs text-red-600">
-                  Como administrador, você pode liberar o caminhão excepcionalmente. Esta ação será registrada.
+                  Como administrador, você pode autorizar a saída excepcionalmente. Justifique abaixo:
                 </p>
                 <textarea
-                  placeholder="Justificativa para liberação excepcional (obrigatório)..."
+                  placeholder="Justificativa formal para liberação com pendências..."
                   value={releaseJustification}
                   onChange={(e) => setReleaseJustification(e.target.value)}
                   rows={2}
@@ -173,7 +240,7 @@ export function Step11_Release({ form, hasBlockingIssue, onComplete }: Step11Pro
             <CheckCircle2 className="mx-auto mb-3 h-10 w-10 text-green-600" />
             <p className="text-lg font-bold text-green-700">🟢 APROVADO</p>
             <p className="mt-2 text-sm text-green-600">
-              O caminhão está apto para sair. Confirme a liberação abaixo.
+              Todos os itens foram inspecionados. Confirme a liberação abaixo.
             </p>
             <Button
               variant="primary"
@@ -197,8 +264,8 @@ export function Step11_Release({ form, hasBlockingIssue, onComplete }: Step11Pro
             </div>
             <h3 className="text-lg font-bold text-slate-800">Confirmar Liberação</h3>
             <p className="mt-2 text-sm text-slate-600">
-              Você confirma que o caminhão <strong>{truck?.internal_code}</strong> com o motorista{' '}
-              <strong>{driver?.name}</strong> está apto para sair?
+              Confirmar liberação do veículo <strong>{truck?.internal_code}</strong> com o motorista{' '}
+              <strong>{driver?.name}</strong>?
             </p>
             {hasBlockingIssue && (
               <Alert type="error" className="mt-3">
@@ -220,7 +287,7 @@ export function Step11_Release({ form, hasBlockingIssue, onComplete }: Step11Pro
                 loading={isReleasing}
                 onClick={handleRelease}
               >
-                Confirmar Liberação
+                Confirmar
               </Button>
             </div>
           </div>

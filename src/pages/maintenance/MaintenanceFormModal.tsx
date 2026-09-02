@@ -1,7 +1,8 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { X, Wrench } from 'lucide-react'
 import { Button, Input, Select, Textarea } from '../../components/ui'
-import { MOCK_TRUCKS } from '../../lib/mock-data'
+import { trucksApi, maintenanceApi } from '../../lib/api'
+import type { Truck } from '../../types'
 
 interface MaintenanceFormModalProps {
   onClose: () => void
@@ -26,9 +27,8 @@ const STATUS_OPTIONS = [
   { value: 'completed', label: 'Concluída' },
 ]
 
-const TRUCK_OPTIONS = MOCK_TRUCKS.map((t) => ({ value: t.id, label: `${t.internal_code} — ${t.plate}` }))
-
 export function MaintenanceFormModal({ onClose, onSave }: MaintenanceFormModalProps) {
+  const [trucks, setTrucks] = useState<Truck[]>([])
   const [form, setForm] = useState({
     truck_id: '', type: 'corrective', description: '',
     date: new Date().toISOString().slice(0, 10),
@@ -37,12 +37,34 @@ export function MaintenanceFormModal({ onClose, onSave }: MaintenanceFormModalPr
   })
   const [isSubmitting, setIsSubmitting] = useState(false)
 
+  useEffect(() => {
+    async function fetchTrucks() {
+      const data = await trucksApi.getAll()
+      setTrucks(data)
+    }
+    void fetchTrucks()
+  }, [])
+
+  const truckOptions = trucks.map((t) => ({ value: t.id, label: `${t.internal_code} — ${t.plate}` }))
+
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
+    if (!form.truck_id || !form.description) return
     setIsSubmitting(true)
-    await new Promise((r) => setTimeout(r, 500))
-    onSave()
+    await maintenanceApi.create({
+      truck_id: form.truck_id,
+      type: form.type as any,
+      description: form.description,
+      date: form.date,
+      mileage: form.mileage ? Number(form.mileage) : undefined,
+      cost: form.cost ? Number(form.cost) : undefined,
+      workshop: form.workshop || undefined,
+      parts_used: form.parts_used || undefined,
+      status: form.status as any,
+      notes: form.notes || undefined,
+    })
     setIsSubmitting(false)
+    onSave()
   }
 
   return (
@@ -63,7 +85,7 @@ export function MaintenanceFormModal({ onClose, onSave }: MaintenanceFormModalPr
         <form onSubmit={handleSubmit} className="p-6 space-y-4">
           <div className="grid grid-cols-2 gap-4">
             <Select label="Caminhão" value={form.truck_id} onChange={(e) => setForm({ ...form, truck_id: e.target.value })}
-              options={TRUCK_OPTIONS} placeholder="Selecione..." required />
+              options={truckOptions} placeholder={truckOptions.length === 0 ? 'Nenhum caminhão cadastrado' : 'Selecione...'} required />
             <Select label="Tipo" value={form.type} onChange={(e) => setForm({ ...form, type: e.target.value })}
               options={TYPE_OPTIONS} />
           </div>

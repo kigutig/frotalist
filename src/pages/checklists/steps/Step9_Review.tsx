@@ -1,7 +1,9 @@
-import { ClipboardList, CheckCircle2, XCircle, MinusCircle, AlertTriangle } from 'lucide-react'
+import { useState, useEffect } from 'react'
+import { ClipboardList, CheckCircle2, XCircle, MinusCircle } from 'lucide-react'
 import { DEPARTURE_CHECKLIST_ITEMS, CATEGORY_LABELS } from '../../../lib/checklist-items'
-import { MOCK_TRUCKS, MOCK_DRIVERS } from '../../../lib/mock-data'
+import { trucksApi, driversApi } from '../../../lib/api'
 import type { StepProps } from './shared'
+import type { Truck, Driver } from '../../../types'
 import { cn } from '../../../lib/utils'
 
 interface Step9Props extends StepProps {
@@ -9,8 +11,22 @@ interface Step9Props extends StepProps {
 }
 
 export function Step9_Review({ form, hasBlockingIssue }: Step9Props) {
-  const truck = MOCK_TRUCKS.find((t) => t.id === form.truck_id)
-  const driver = MOCK_DRIVERS.find((d) => d.id === form.driver_id)
+  const [truck, setTruck] = useState<Truck | null>(null)
+  const [driver, setDriver] = useState<Driver | null>(null)
+
+  useEffect(() => {
+    async function loadEntities() {
+      if (form.truck_id) {
+        const t = await trucksApi.getById(form.truck_id)
+        setTruck(t)
+      }
+      if (form.driver_id) {
+        const d = await driversApi.getById(form.driver_id)
+        setDriver(d)
+      }
+    }
+    void loadEntities()
+  }, [form.truck_id, form.driver_id])
 
   const totalItems = DEPARTURE_CHECKLIST_ITEMS.length
   const okCount = Object.values(form.items).filter((s) => s === 'ok').length

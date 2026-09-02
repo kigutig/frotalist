@@ -1,44 +1,13 @@
-import { useState } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { ClipboardList, Plus, Search, Filter, Eye, ArrowUpRight, ArrowDownLeft } from 'lucide-react'
+import { ClipboardList, Plus, Search, Eye, ArrowUpRight, ArrowDownLeft, Loader2 } from 'lucide-react'
 import {
   Card, CardBody, Button, Input, Select, EmptyState,
   Table, TableHead, TableBody, Th, Td,
 } from '../../components/ui'
-import { MOCK_TRUCKS, MOCK_DRIVERS, MOCK_TRIPS } from '../../lib/mock-data'
+import { checklistsApi } from '../../lib/api'
 import { CHECKLIST_STATUS_LABELS, CHECKLIST_STATUS_COLORS, formatDateTime, cn } from '../../lib/utils'
-
-// Mock checklists derived from trips
-const MOCK_CHECKLISTS = [
-  {
-    id: 'ckl1', trip_id: 'trip1', truck_id: 'trk1', driver_id: 'drv1',
-    type: 'departure', status: 'released', mileage: 125430,
-    destination: 'Shopping das Academias Campinas',
-    started_at: '2026-09-02T07:00:00Z', completed_at: '2026-09-02T07:28:00Z',
-    created_by: 'u2',
-  },
-  {
-    id: 'ckl2', trip_id: 'trip2', truck_id: 'trk2', driver_id: 'drv2',
-    type: 'departure', status: 'released', mileage: 97800,
-    destination: 'Filial Rio de Janeiro',
-    started_at: '2026-09-01T05:30:00Z', completed_at: '2026-09-01T05:55:00Z',
-    created_by: 'u2',
-  },
-  {
-    id: 'ckl3', trip_id: 'trip2', truck_id: 'trk2', driver_id: 'drv2',
-    type: 'return', status: 'completed', mileage: 98200,
-    destination: 'Depósito Central',
-    started_at: '2026-09-01T20:30:00Z', completed_at: '2026-09-01T20:50:00Z',
-    created_by: 'u2',
-  },
-  {
-    id: 'ckl4', trip_id: null, truck_id: 'trk5', driver_id: 'drv4',
-    type: 'departure', status: 'rejected', mileage: 312800,
-    destination: 'Filial Curitiba',
-    started_at: '2026-08-30T08:00:00Z', completed_at: '2026-08-30T09:00:00Z',
-    created_by: 'u2',
-  },
-]
+import type { Checklist } from '../../types'
 
 const TYPE_OPTIONS = [
   { value: '', label: 'Todos os tipos' },
@@ -57,20 +26,31 @@ const STATUS_OPTIONS = [
 
 export function ChecklistsPage() {
   const navigate = useNavigate()
+  const [checklistsList, setChecklistsList] = useState<Checklist[]>([])
+  const [loading, setLoading] = useState(true)
   const [search, setSearch] = useState('')
   const [typeFilter, setTypeFilter] = useState('')
   const [statusFilter, setStatusFilter] = useState('')
 
-  const checklists = MOCK_CHECKLISTS.filter((c) => {
-    const truck = MOCK_TRUCKS.find((t) => t.id === c.truck_id)
-    const driver = MOCK_DRIVERS.find((d) => d.id === c.driver_id)
+  const loadChecklists = useCallback(async () => {
+    setLoading(true)
+    const data = await checklistsApi.getAll()
+    setChecklistsList(data)
+    setLoading(false)
+  }, [])
+
+  useEffect(() => {
+    void loadChecklists()
+  }, [loadChecklists])
+
+  const checklists = checklistsList.filter((c) => {
     const q = search.toLowerCase()
     const matchesSearch =
       !q ||
-      truck?.internal_code.toLowerCase().includes(q) ||
-      truck?.plate.toLowerCase().includes(q) ||
-      driver?.name.toLowerCase().includes(q) ||
-      c.destination.toLowerCase().includes(q)
+      c.truck?.internal_code.toLowerCase().includes(q) ||
+      c.truck?.plate.toLowerCase().includes(q) ||
+      c.driver?.name.toLowerCase().includes(q) ||
+      (c.destination && c.destination.toLowerCase().includes(q))
     const matchesType = !typeFilter || c.type === typeFilter
     const matchesStatus = !statusFilter || c.status === statusFilter
     return matchesSearch && matchesType && matchesStatus
@@ -81,7 +61,7 @@ export function ChecklistsPage() {
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h2 className="text-xl font-bold text-slate-800">Checklists</h2>
-          <p className="text-sm text-slate-500">{MOCK_CHECKLISTS.length} checklists registrados</p>
+          <p className="text-sm text-slate-500">{checklistsList.length} checklists registrados</p>
         </div>
         <Button variant="primary" leftIcon={Plus} onClick={() => navigate('/checklists/new')}>
           Novo Checklist de Saída
@@ -105,10 +85,16 @@ export function ChecklistsPage() {
       </Card>
 
       <Card>
-        {checklists.length === 0 ? (
+        {loading ? (
+          <div className="flex items-center justify-center py-16 text-slate-500">
+            <Loader2 className="h-6 w-6 animate-spin mr-2" />
+            <span>Carregando checklists...</span>
+          </div>
+        ) : checklists.length === 0 ? (
           <EmptyState
             icon={ClipboardList}
-            title="Nenhum checklist encontrado"
+            title="Nenhum checklist registrado"
+            description="Todos os checklists de saída e retorno realizados aparecerão aqui."
             action={<Button variant="primary" leftIcon={Plus} onClick={() => navigate('/checklists/new')}>Novo Checklist</Button>}
           />
         ) : (
@@ -126,9 +112,7 @@ export function ChecklistsPage() {
             </TableHead>
             <TableBody>
               {checklists.map((c) => {
-                const truck = MOCK_TRUCKS.find((t) => t.id === c.truck_id)
-                const driver = MOCK_DRIVERS.find((d) => d.id === c.driver_id)
-                const statusClass = CHECKLIST_STATUS_COLORS[c.status as keyof typeof CHECKLIST_STATUS_COLORS]
+                const statusClass = CHECKLIST_STATUS_COLORS[c.status] || 'bg-slate-100 text-slate-700'
 
                 return (
                   <tr key={c.id} className="cursor-pointer hover:bg-slate-50" onClick={() => navigate(`/checklists/${c.id}`)}>
@@ -141,15 +125,15 @@ export function ChecklistsPage() {
                       </div>
                     </Td>
                     <Td>
-                      <p className="font-semibold text-slate-800">{truck?.internal_code}</p>
-                      <p className="text-xs text-slate-500">{truck?.plate}</p>
+                      <p className="font-semibold text-slate-800">{c.truck?.internal_code || '—'}</p>
+                      <p className="text-xs text-slate-500">{c.truck?.plate}</p>
                     </Td>
-                    <Td>{driver?.name ?? '—'}</Td>
-                    <Td className="max-w-[160px] truncate">{c.destination}</Td>
+                    <Td>{c.driver?.name ?? '—'}</Td>
+                    <Td className="max-w-[160px] truncate">{c.destination || '—'}</Td>
                     <Td className="text-sm">{formatDateTime(c.started_at)}</Td>
                     <Td>
                       <span className={cn('inline-flex rounded-full border px-2.5 py-1 text-xs font-medium', statusClass)}>
-                        {CHECKLIST_STATUS_LABELS[c.status as keyof typeof CHECKLIST_STATUS_LABELS]}
+                        {CHECKLIST_STATUS_LABELS[c.status] || c.status}
                       </span>
                     </Td>
                     <Td className="text-right">

@@ -1,16 +1,16 @@
-import { useState } from 'react'
-import { useNavigate } from 'react-router-dom'
-import { Wrench, Plus, Search } from 'lucide-react'
+import { useState, useEffect, useCallback } from 'react'
+import { Wrench, Plus, Search, Loader2 } from 'lucide-react'
 import {
   Card, CardBody, Button, Input, Select, EmptyState,
   Table, TableHead, TableBody, Th, Td,
 } from '../../components/ui'
 import { MaintenanceFormModal } from './MaintenanceFormModal'
-import { MOCK_MAINTENANCE } from '../../lib/mock-data'
+import { maintenanceApi } from '../../lib/api'
 import {
   MAINTENANCE_STATUS_LABELS, MAINTENANCE_STATUS_COLORS,
   formatDate, formatCurrency, cn,
 } from '../../lib/utils'
+import type { Maintenance } from '../../types'
 
 const STATUS_OPTIONS = [
   { value: '', label: 'Todos' },
@@ -32,16 +32,29 @@ const TYPE_LABELS: Record<string, string> = {
 }
 
 export function MaintenancePage() {
+  const [maintenanceList, setMaintenanceList] = useState<Maintenance[]>([])
+  const [loading, setLoading] = useState(true)
   const [search, setSearch] = useState('')
   const [statusFilter, setStatusFilter] = useState('')
   const [showForm, setShowForm] = useState(false)
 
-  const items = MOCK_MAINTENANCE.filter((m) => {
+  const loadMaintenance = useCallback(async () => {
+    setLoading(true)
+    const data = await maintenanceApi.getAll()
+    setMaintenanceList(data)
+    setLoading(false)
+  }, [])
+
+  useEffect(() => {
+    void loadMaintenance()
+  }, [loadMaintenance])
+
+  const items = maintenanceList.filter((m) => {
     const q = search.toLowerCase()
     const matchesSearch =
       !q ||
-      m.truck?.internal_code.toLowerCase().includes(q) ||
-      m.description.toLowerCase().includes(q)
+      m.truck?.internal_code?.toLowerCase().includes(q) ||
+      m.description?.toLowerCase().includes(q)
     const matchesStatus = !statusFilter || m.status === statusFilter
     return matchesSearch && matchesStatus
   })
@@ -51,7 +64,7 @@ export function MaintenancePage() {
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h2 className="text-xl font-bold text-slate-800">Manutenção</h2>
-          <p className="text-sm text-slate-500">{MOCK_MAINTENANCE.length} registros</p>
+          <p className="text-sm text-slate-500">{maintenanceList.length} registros</p>
         </div>
         <Button variant="primary" leftIcon={Plus} onClick={() => setShowForm(true)}>
           Nova Manutenção
@@ -74,10 +87,16 @@ export function MaintenancePage() {
       </Card>
 
       <Card>
-        {items.length === 0 ? (
+        {loading ? (
+          <div className="flex items-center justify-center py-16 text-slate-500">
+            <Loader2 className="h-6 w-6 animate-spin mr-2" />
+            <span>Carregando manutenções...</span>
+          </div>
+        ) : items.length === 0 ? (
           <EmptyState
             icon={Wrench}
-            title="Nenhuma manutenção encontrada"
+            title="Nenhum registro de manutenção"
+            description="Cadastre serviços preventivos ou corretivos para acompanhar os custos e manutenções da frota."
             action={<Button variant="primary" leftIcon={Plus} onClick={() => setShowForm(true)}>Nova Manutenção</Button>}
           />
         ) : (
@@ -96,7 +115,7 @@ export function MaintenancePage() {
               {items.map((m) => (
                 <tr key={m.id} className="hover:bg-slate-50">
                   <Td>
-                    <p className="font-semibold text-slate-800">{m.truck?.internal_code}</p>
+                    <p className="font-semibold text-slate-800">{m.truck?.internal_code || '—'}</p>
                     <p className="text-xs text-slate-500">{m.truck?.plate}</p>
                   </Td>
                   <Td>
@@ -109,7 +128,7 @@ export function MaintenancePage() {
                     {m.workshop && <p className="text-xs text-slate-500">{m.workshop}</p>}
                   </Td>
                   <Td className="text-sm">{formatDate(m.date)}</Td>
-                  <Td className="font-mono text-sm">{formatCurrency(m.cost)}</Td>
+                  <Td className="font-mono text-sm">{m.cost ? formatCurrency(m.cost) : '—'}</Td>
                   <Td>
                     <span className={cn('inline-flex rounded-full border px-2.5 py-1 text-xs font-medium', MAINTENANCE_STATUS_COLORS[m.status])}>
                       {MAINTENANCE_STATUS_LABELS[m.status]}
@@ -123,7 +142,13 @@ export function MaintenancePage() {
       </Card>
 
       {showForm && (
-        <MaintenanceFormModal onClose={() => setShowForm(false)} onSave={() => setShowForm(false)} />
+        <MaintenanceFormModal
+          onClose={() => setShowForm(false)}
+          onSave={async () => {
+            setShowForm(false)
+            await loadMaintenance()
+          }}
+        />
       )}
     </div>
   )

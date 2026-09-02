@@ -1,17 +1,26 @@
-import { useRef, useState } from 'react'
+import { useRef, useState, useEffect } from 'react'
 import { PenTool, Trash2, Check } from 'lucide-react'
-import { Button } from '../../../components/ui'
 import type { StepProps } from './shared'
-import { MOCK_DRIVERS } from '../../../lib/mock-data'
+import { driversApi } from '../../../lib/api'
+import type { Driver } from '../../../types'
 
 export function Step10_Signature({ form, onUpdateField }: StepProps) {
-  const driver = MOCK_DRIVERS.find((d) => d.id === form.driver_id)
+  const [driver, setDriver] = useState<Driver | null>(null)
   const [driverSignature, setDriverSignature] = useState<string>(form.driver_signature ?? '')
   const [responsibleSignature, setResponsibleSignature] = useState<string>(form.responsible_signature ?? '')
   const [responsibleName, setResponsibleName] = useState(form.responsible_name ?? '')
-  const [activeCanvas, setActiveCanvas] = useState<'driver' | 'responsible' | null>(null)
+  const [, setActiveCanvas] = useState<'driver' | 'responsible' | null>(null)
 
-  // Simple canvas-based signature
+  useEffect(() => {
+    async function loadDriver() {
+      if (form.driver_id) {
+        const d = await driversApi.getById(form.driver_id)
+        setDriver(d)
+      }
+    }
+    void loadDriver()
+  }, [form.driver_id])
+
   function SignatureCanvas({
     label,
     value,
@@ -131,7 +140,7 @@ export function Step10_Signature({ form, onUpdateField }: StepProps) {
             />
             {!hasDrawing && (
               <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
-                <p className="text-sm text-slate-400">Assine aqui</p>
+                <p className="text-sm text-slate-400">Assine aqui com o mouse ou dedo</p>
               </div>
             )}
             <div className="absolute bottom-0 left-8 right-8 border-b-2 border-dashed border-slate-300" />
@@ -139,12 +148,6 @@ export function Step10_Signature({ form, onUpdateField }: StepProps) {
         )}
       </div>
     )
-  }
-
-  function saveSignatures() {
-    onUpdateField('driver_signature', driverSignature)
-    onUpdateField('responsible_signature', responsibleSignature)
-    onUpdateField('responsible_name', responsibleName)
   }
 
   return (
@@ -212,7 +215,7 @@ export function Step10_Signature({ form, onUpdateField }: StepProps) {
         </div>
 
         <p className="text-xs text-slate-400 text-center">
-          As assinaturas serão vinculadas ao checklist e não poderão ser alteradas após a liberação.
+          As assinaturas serão vinculadas ao checklist e registradas com data e hora.
         </p>
       </div>
     </div>

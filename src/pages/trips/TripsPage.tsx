@@ -1,12 +1,13 @@
-import { useState } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Route, Plus, Search, Eye, ArrowRight, MapPin, Clock } from 'lucide-react'
+import { Route, Search, Eye, ArrowRight, Loader2 } from 'lucide-react'
 import {
   Card, CardBody, Button, Input, Select, EmptyState,
   Table, TableHead, TableBody, Th, Td,
 } from '../../components/ui'
-import { MOCK_TRIPS } from '../../lib/mock-data'
+import { tripsApi } from '../../lib/api'
 import { TRIP_STATUS_LABELS, TRIP_STATUS_COLORS, formatDateTime, formatMileage, cn } from '../../lib/utils'
+import type { Trip } from '../../types'
 
 const STATUS_OPTIONS = [
   { value: '', label: 'Todos' },
@@ -19,16 +20,29 @@ const STATUS_OPTIONS = [
 
 export function TripsPage() {
   const navigate = useNavigate()
+  const [tripsList, setTripsList] = useState<Trip[]>([])
+  const [loading, setLoading] = useState(true)
   const [search, setSearch] = useState('')
   const [statusFilter, setStatusFilter] = useState('')
 
-  const trips = MOCK_TRIPS.filter((t) => {
+  const loadTrips = useCallback(async () => {
+    setLoading(true)
+    const data = await tripsApi.getAll()
+    setTripsList(data)
+    setLoading(false)
+  }, [])
+
+  useEffect(() => {
+    void loadTrips()
+  }, [loadTrips])
+
+  const trips = tripsList.filter((t) => {
     const q = search.toLowerCase()
     const matchesSearch =
       !q ||
-      t.truck?.internal_code.toLowerCase().includes(q) ||
-      t.driver?.name.toLowerCase().includes(q) ||
-      t.destination.toLowerCase().includes(q)
+      t.truck?.internal_code?.toLowerCase().includes(q) ||
+      t.driver?.name?.toLowerCase().includes(q) ||
+      t.destination?.toLowerCase().includes(q)
     const matchesStatus = !statusFilter || t.status === statusFilter
     return matchesSearch && matchesStatus
   })
@@ -38,7 +52,7 @@ export function TripsPage() {
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h2 className="text-xl font-bold text-slate-800">Viagens</h2>
-          <p className="text-sm text-slate-500">{MOCK_TRIPS.length} viagens registradas</p>
+          <p className="text-sm text-slate-500">{tripsList.length} viagens registradas</p>
         </div>
       </div>
 
@@ -58,8 +72,17 @@ export function TripsPage() {
       </Card>
 
       <Card>
-        {trips.length === 0 ? (
-          <EmptyState icon={Route} title="Nenhuma viagem encontrada" description="As viagens são criadas automaticamente ao liberar um checklist de saída." />
+        {loading ? (
+          <div className="flex items-center justify-center py-16 text-slate-500">
+            <Loader2 className="h-6 w-6 animate-spin mr-2" />
+            <span>Carregando viagens...</span>
+          </div>
+        ) : trips.length === 0 ? (
+          <EmptyState
+            icon={Route}
+            title="Nenhuma viagem registrada"
+            description="As viagens são geradas e registradas automaticamente assim que um checklist de saída for liberado."
+          />
         ) : (
           <Table>
             <TableHead>
@@ -80,12 +103,12 @@ export function TripsPage() {
                 return (
                   <tr key={trip.id} className="cursor-pointer hover:bg-slate-50" onClick={() => navigate(`/trips/${trip.id}`)}>
                     <Td>
-                      <p className="font-semibold text-slate-800">{trip.truck?.internal_code}</p>
-                      <p className="text-xs text-slate-500">{trip.driver?.name}</p>
+                      <p className="font-semibold text-slate-800">{trip.truck?.internal_code || '—'}</p>
+                      <p className="text-xs text-slate-500">{trip.driver?.name || '—'}</p>
                     </Td>
                     <Td>
                       <div className="flex items-center gap-2 text-sm">
-                        <span className="text-slate-500 truncate max-w-[100px]">{trip.origin.split(' — ')[0]}</span>
+                        <span className="text-slate-500 truncate max-w-[100px]">{trip.origin?.split(' — ')[0] || 'Origem'}</span>
                         <ArrowRight className="h-3.5 w-3.5 shrink-0 text-slate-400" />
                         <span className="font-medium text-slate-700 truncate max-w-[100px]">{trip.destination}</span>
                       </div>
