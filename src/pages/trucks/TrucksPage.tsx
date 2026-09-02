@@ -1,19 +1,17 @@
-import { useState } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
 import {
   Truck,
   Plus,
   Search,
-  Filter,
   Edit2,
   Eye,
-  MoreVertical,
   ClipboardList,
-  MapPin,
+  Loader2,
+  Trash2,
 } from 'lucide-react'
 import {
   Card,
-  CardHeader,
   CardBody,
   Button,
   Input,
@@ -24,16 +22,13 @@ import {
   TableBody,
   Th,
   Td,
-  Badge,
-  Modal,
 } from '../../components/ui'
 import { TruckFormModal } from './TruckFormModal'
-import { MOCK_TRUCKS } from '../../lib/mock-data'
+import { trucksApi } from '../../lib/api'
 import {
   TRUCK_STATUS_LABELS,
   TRUCK_STATUS_COLORS,
   formatMileage,
-  formatDate,
   cn,
 } from '../../lib/utils'
 import type { Truck as TruckType, TruckStatus } from '../../types'
@@ -49,12 +44,43 @@ const STATUS_FILTER_OPTIONS = [
 
 export function TrucksPage() {
   const navigate = useNavigate()
+  const [trucksList, setTrucksList] = useState<TruckType[]>([])
+  const [loading, setLoading] = useState(true)
   const [search, setSearch] = useState('')
   const [statusFilter, setStatusFilter] = useState('')
   const [showForm, setShowForm] = useState(false)
   const [editingTruck, setEditingTruck] = useState<TruckType | null>(null)
 
-  const trucks = MOCK_TRUCKS.filter((t) => {
+  const loadTrucks = useCallback(async () => {
+    setLoading(true)
+    const data = await trucksApi.getAll()
+    setTrucksList(data)
+    setLoading(false)
+  }, [])
+
+  useEffect(() => {
+    void loadTrucks()
+  }, [loadTrucks])
+
+  const handleSaveTruck = async (formData: Partial<TruckType>) => {
+    if (editingTruck) {
+      await trucksApi.update(editingTruck.id, formData)
+    } else {
+      await trucksApi.create(formData as Omit<TruckType, 'id' | 'created_at' | 'updated_at'>)
+    }
+    setShowForm(false)
+    await loadTrucks()
+  }
+
+  const handleDeleteTruck = async (id: string, e: React.MouseEvent) => {
+    e.stopPropagation()
+    if (window.confirm('Tem certeza que deseja excluir este caminhão?')) {
+      await trucksApi.delete(id)
+      await loadTrucks()
+    }
+  }
+
+  const trucks = trucksList.filter((t) => {
     const q = search.toLowerCase()
     const matchesSearch =
       !q ||
@@ -68,10 +94,10 @@ export function TrucksPage() {
 
   // Summary counts
   const counts = {
-    available: MOCK_TRUCKS.filter((t) => t.status === 'available').length,
-    in_route: MOCK_TRUCKS.filter((t) => t.status === 'in_route').length,
-    maintenance: MOCK_TRUCKS.filter((t) => t.status === 'maintenance').length,
-    blocked: MOCK_TRUCKS.filter((t) => t.status === 'blocked').length,
+    available: trucksList.filter((t) => t.status === 'available').length,
+    in_route: trucksList.filter((t) => t.status === 'in_route').length,
+    maintenance: trucksList.filter((t) => t.status === 'maintenance').length,
+    blocked: trucksList.filter((t) => t.status === 'blocked').length,
   }
 
   return (
@@ -80,7 +106,7 @@ export function TrucksPage() {
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h2 className="text-xl font-bold text-slate-800">Caminhões</h2>
-          <p className="text-sm text-slate-500">{MOCK_TRUCKS.length} veículos cadastrados</p>
+          <p className="text-sm text-slate-500">{trucksList.length} veículos cadastrados</p>
         </div>
         <Button variant="primary" leftIcon={Plus} onClick={() => { setEditingTruck(null); setShowForm(true) }}>
           Novo Caminhão
@@ -90,7 +116,7 @@ export function TrucksPage() {
       {/* Status summary */}
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
         {(Object.entries(counts) as [TruckStatus, number][]).map(([status, count]) => {
-          const colors = TRUCK_STATUS_COLORS[status]
+          const colors = TRUCK_STATUS_COLORS[status] || { dot: 'bg-slate-400', badge: 'bg-slate-100' }
           return (
             <button
               key={status}
@@ -135,13 +161,18 @@ export function TrucksPage() {
 
       {/* Table */}
       <Card>
-        {trucks.length === 0 ? (
+        {loading ? (
+          <div className="flex items-center justify-center py-16 text-slate-500">
+            <Loader2 className="h-6 w-6 animate-spin mr-2" />
+            <span>Carregando caminhões do banco...</span>
+          </div>
+        ) : trucks.length === 0 ? (
           <EmptyState
             icon={Truck}
-            title="Nenhum caminhão encontrado"
-            description="Tente ajustar os filtros ou cadastre um novo caminhão."
+            title="Nenhum caminhão cadastrado"
+            description="Cadastre o primeiro caminhão da frota para iniciar os controles de checklist e viagens."
             action={
-              <Button variant="primary" leftIcon={Plus} onClick={() => setShowForm(true)}>
+              <Button variant="primary" leftIcon={Plus} onClick={() => { setEditingTruck(null); setShowForm(true) }}>
                 Cadastrar Caminhão
               </Button>
             }
@@ -161,7 +192,7 @@ export function TrucksPage() {
             <TableBody>
               {trucks.map((truck) => {
                 const status = truck.status as TruckStatus
-                const colors = TRUCK_STATUS_COLORS[status]
+                const colors = TRUCK_STATUS_COLORS[status] || { dot: 'bg-slate-400', badge: 'bg-slate-100 text-slate-700' }
                 return (
                   <tr
                     key={truck.id}
@@ -222,6 +253,13 @@ export function TrucksPage() {
                         >
                           <Edit2 className="h-4 w-4" />
                         </Button>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          onClick={(e) => handleDeleteTruck(truck.id, e)}
+                        >
+                          <Trash2 className="h-4 w-4 text-red-500" />
+                        </Button>
                       </div>
                     </Td>
                   </tr>
@@ -237,7 +275,7 @@ export function TrucksPage() {
         <TruckFormModal
           truck={editingTruck}
           onClose={() => setShowForm(false)}
-          onSave={() => setShowForm(false)}
+          onSave={handleSaveTruck}
         />
       )}
     </div>

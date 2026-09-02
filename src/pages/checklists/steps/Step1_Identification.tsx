@@ -1,18 +1,46 @@
-import { Truck, User, MapPin, Gauge, Clock } from 'lucide-react'
+import { useState, useEffect } from 'react'
+import { Truck, MapPin } from 'lucide-react'
 import { Input, Select } from '../../../components/ui'
-import { MOCK_TRUCKS, MOCK_DRIVERS } from '../../../lib/mock-data'
+import { trucksApi, driversApi } from '../../../lib/api'
 import type { StepProps } from './shared'
-
-const TRUCK_OPTIONS = MOCK_TRUCKS
-  .filter((t) => t.status === 'available' || t.status === 'in_route')
-  .map((t) => ({ value: t.id, label: `${t.internal_code} — ${t.plate} (${MOCK_TRUCKS.find(x => x.id === t.id)?.model})` }))
-
-const DRIVER_OPTIONS = MOCK_DRIVERS
-  .filter((d) => d.status === 'active')
-  .map((d) => ({ value: d.id, label: `${d.name} — CNH ${d.cnh_category}` }))
+import type { Truck as TruckType, Driver } from '../../../types'
 
 export function Step1_Identification({ form, onUpdateField }: StepProps) {
+  const [trucks, setTrucks] = useState<TruckType[]>([])
+  const [drivers, setDrivers] = useState<Driver[]>([])
+  const [loading, setLoading] = useState(true)
   const now = new Date().toISOString().slice(0, 16)
+
+  useEffect(() => {
+    async function loadData() {
+      setLoading(true)
+      const [tData, dData] = await Promise.all([
+        trucksApi.getAll(),
+        driversApi.getAll(),
+      ])
+      setTrucks(tData)
+      setDrivers(dData)
+      setLoading(false)
+    }
+    void loadData()
+  }, [])
+
+  const truckOptions = trucks
+    .filter((t) => t.status === 'available' || t.status === 'in_route')
+    .map((t) => ({
+      value: t.id,
+      label: `${t.internal_code} — ${t.plate} (${t.brand} ${t.model})`,
+    }))
+
+  const driverOptions = drivers
+    .filter((d) => d.status === 'active')
+    .map((d) => ({
+      value: d.id,
+      label: `${d.name} — CNH Cat. ${d.cnh_category}`,
+    }))
+
+  const selectedTruck = trucks.find((t) => t.id === form.truck_id)
+  const selectedDriver = drivers.find((d) => d.id === form.driver_id)
 
   return (
     <div>
@@ -32,9 +60,16 @@ export function Step1_Identification({ form, onUpdateField }: StepProps) {
         <Select
           label="Caminhão"
           value={form.truck_id}
-          onChange={(e) => onUpdateField('truck_id', e.target.value)}
-          options={TRUCK_OPTIONS}
-          placeholder="Selecione o caminhão..."
+          onChange={(e) => {
+            const trkId = e.target.value
+            onUpdateField('truck_id', trkId)
+            const t = trucks.find((x) => x.id === trkId)
+            if (t && t.mileage) {
+              onUpdateField('mileage', t.mileage)
+            }
+          }}
+          options={truckOptions}
+          placeholder={loading ? 'Carregando caminhões...' : truckOptions.length === 0 ? 'Nenhum caminhão disponível (cadastre em Caminhões)' : 'Selecione o caminhão...'}
           required
         />
 
@@ -42,8 +77,8 @@ export function Step1_Identification({ form, onUpdateField }: StepProps) {
           label="Motorista"
           value={form.driver_id}
           onChange={(e) => onUpdateField('driver_id', e.target.value)}
-          options={DRIVER_OPTIONS}
-          placeholder="Selecione o motorista..."
+          options={driverOptions}
+          placeholder={loading ? 'Carregando motoristas...' : driverOptions.length === 0 ? 'Nenhum motorista ativo (cadastre em Motoristas)' : 'Selecione o motorista...'}
           required
         />
 
@@ -67,7 +102,7 @@ export function Step1_Identification({ form, onUpdateField }: StepProps) {
         </div>
 
         <Input
-          label="Destino"
+          label="Destino da Entrega / Rota"
           placeholder="Ex: Shopping das Academias Campinas"
           value={form.destination}
           onChange={(e) => onUpdateField('destination', e.target.value)}
@@ -75,18 +110,12 @@ export function Step1_Identification({ form, onUpdateField }: StepProps) {
           required
         />
 
-        <Input
-          label="Responsável pelo Checklist"
-          placeholder="Nome do operador responsável"
-          defaultValue=""
-        />
-
         <div>
           <label className="mb-1.5 block text-sm font-medium text-slate-700">
-            Observações iniciais
+            Observações Iniciais
           </label>
           <textarea
-            placeholder="Informações adicionais sobre a viagem..."
+            placeholder="Informações adicionais sobre a rota ou carga..."
             value={form.notes}
             onChange={(e) => onUpdateField('notes', e.target.value)}
             rows={3}
@@ -95,12 +124,12 @@ export function Step1_Identification({ form, onUpdateField }: StepProps) {
         </div>
 
         {/* Helper info */}
-        {form.truck_id && form.driver_id && (
+        {selectedTruck && selectedDriver && (
           <div className="rounded-xl bg-blue-50 border border-blue-200 p-4">
-            <p className="text-sm font-medium text-blue-800">Resumo da operação</p>
+            <p className="text-sm font-medium text-blue-800">Resumo da Operação</p>
             <ul className="mt-2 space-y-1 text-xs text-blue-700">
-              <li>🚛 {MOCK_TRUCKS.find((t) => t.id === form.truck_id)?.internal_code} — {MOCK_TRUCKS.find((t) => t.id === form.truck_id)?.plate}</li>
-              <li>👤 {MOCK_DRIVERS.find((d) => d.id === form.driver_id)?.name}</li>
+              <li>🚛 {selectedTruck.internal_code} — {selectedTruck.plate} ({selectedTruck.brand} {selectedTruck.model})</li>
+              <li>👤 {selectedDriver.name} — CNH: {selectedDriver.cnh} (Cat. {selectedDriver.cnh_category})</li>
               {form.destination && <li>📍 Destino: {form.destination}</li>}
               {form.mileage > 0 && <li>📏 KM Saída: {form.mileage.toLocaleString('pt-BR')} km</li>}
             </ul>

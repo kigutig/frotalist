@@ -18,8 +18,8 @@ interface AuthContextType {
   role: UserRole | null
   isAdmin: boolean
   isOperator: boolean
-  isDriver: boolean
   signIn: (email: string, password: string) => Promise<{ error?: string }>
+  signUp: (data: { name: string; email: string; password: string; role?: UserRole }) => Promise<{ error?: string }>
   signOut: () => Promise<void>
   hasPermission: (requiredRoles: UserRole[]) => boolean
 }
@@ -121,9 +121,72 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
     const { error } = await supabase.auth.signInWithPassword({ email, password })
     if (error) {
-      return { error: 'Email ou senha incorretos.' }
+      return { error: 'Email ou senha incorretos: ' + error.message }
     }
     return {}
+  }, [])
+
+  const signUp = useCallback(async ({
+    name,
+    email,
+    password,
+    role = 'operator',
+  }: {
+    name: string
+    email: string
+    password: string
+    role?: UserRole
+  }): Promise<{ error?: string }> => {
+    if (IS_DEMO_MODE) {
+      const newUser: User = {
+        id: 'usr_' + Date.now(),
+        name,
+        email,
+        role,
+        status: 'active',
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      }
+      setUser(newUser)
+      localStorage.setItem('demo_user', JSON.stringify(newUser))
+      return {}
+    }
+
+    try {
+      const { data, error } = await supabase.auth.signUp({
+        email,
+        password,
+        options: {
+          data: {
+            name,
+            role,
+          },
+        },
+      })
+
+      if (error) {
+        return { error: error.message }
+      }
+
+      if (data.user) {
+        // Create user profile in public.users table
+        const { error: profileError } = await supabase.from('users').upsert({
+          id: data.user.id,
+          name,
+          email,
+          role,
+          status: 'active',
+        })
+
+        if (profileError) {
+          console.warn('Perfil pendente de autorização no DB:', profileError.message)
+        }
+      }
+
+      return {}
+    } catch (err: unknown) {
+      return { error: err instanceof Error ? err.message : 'Erro ao cadastrar usuário' }
+    }
   }, [])
 
   const signOut = useCallback(async () => {
@@ -159,6 +222,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         isOperator,
         isDriver,
         signIn,
+        signUp,
         signOut,
         hasPermission,
       }}

@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
 import {
   Users,
@@ -6,9 +6,10 @@ import {
   Search,
   Edit2,
   Eye,
-  AlertTriangle,
+  Trash2,
   Phone,
   FileText,
+  Loader2,
 } from 'lucide-react'
 import {
   Card,
@@ -25,7 +26,7 @@ import {
   Alert,
 } from '../../components/ui'
 import { DriverFormModal } from './DriverFormModal'
-import { MOCK_DRIVERS } from '../../lib/mock-data'
+import { driversApi } from '../../lib/api'
 import {
   DRIVER_STATUS_LABELS,
   DRIVER_STATUS_COLORS,
@@ -46,17 +47,48 @@ const STATUS_OPTIONS = [
 
 export function DriversPage() {
   const navigate = useNavigate()
+  const [driversList, setDriversList] = useState<Driver[]>([])
+  const [loading, setLoading] = useState(true)
   const [search, setSearch] = useState('')
   const [statusFilter, setStatusFilter] = useState('')
   const [showForm, setShowForm] = useState(false)
   const [editingDriver, setEditingDriver] = useState<Driver | null>(null)
 
+  const loadDrivers = useCallback(async () => {
+    setLoading(true)
+    const data = await driversApi.getAll()
+    setDriversList(data)
+    setLoading(false)
+  }, [])
+
+  useEffect(() => {
+    void loadDrivers()
+  }, [loadDrivers])
+
+  const handleSaveDriver = async (formData: Partial<Driver>) => {
+    if (editingDriver) {
+      await driversApi.update(editingDriver.id, formData)
+    } else {
+      await driversApi.create(formData as Omit<Driver, 'id' | 'created_at' | 'updated_at'>)
+    }
+    setShowForm(false)
+    await loadDrivers()
+  }
+
+  const handleDeleteDriver = async (id: string, e: React.MouseEvent) => {
+    e.stopPropagation()
+    if (window.confirm('Tem certeza que deseja excluir este motorista?')) {
+      await driversApi.delete(id)
+      await loadDrivers()
+    }
+  }
+
   // Alerts for expiring CNH
-  const expiringDrivers = MOCK_DRIVERS.filter(
+  const expiringDrivers = driversList.filter(
     (d) => d.status === 'active' && isCNHExpiring(d.cnh_expiration, 60)
   )
 
-  const drivers = MOCK_DRIVERS.filter((d) => {
+  const drivers = driversList.filter((d) => {
     const q = search.toLowerCase()
     const matchesSearch =
       !q ||
@@ -74,7 +106,7 @@ export function DriversPage() {
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h2 className="text-xl font-bold text-slate-800">Motoristas</h2>
-          <p className="text-sm text-slate-500">{MOCK_DRIVERS.length} motoristas cadastrados</p>
+          <p className="text-sm text-slate-500">{driversList.length} motoristas cadastrados</p>
         </div>
         <Button variant="primary" leftIcon={Plus} onClick={() => { setEditingDriver(null); setShowForm(true) }}>
           Novo Motorista
@@ -125,13 +157,18 @@ export function DriversPage() {
 
       {/* Table */}
       <Card>
-        {drivers.length === 0 ? (
+        {loading ? (
+          <div className="flex items-center justify-center py-16 text-slate-500">
+            <Loader2 className="h-6 w-6 animate-spin mr-2" />
+            <span>Carregando motoristas do banco...</span>
+          </div>
+        ) : drivers.length === 0 ? (
           <EmptyState
             icon={Users}
-            title="Nenhum motorista encontrado"
-            description="Tente ajustar os filtros ou cadastre um novo motorista."
+            title="Nenhum motorista cadastrado"
+            description="Cadastre os motoristas da equipe para vinculá-los às viagens e checklists."
             action={
-              <Button variant="primary" leftIcon={Plus} onClick={() => setShowForm(true)}>
+              <Button variant="primary" leftIcon={Plus} onClick={() => { setEditingDriver(null); setShowForm(true) }}>
                 Cadastrar Motorista
               </Button>
             }
@@ -151,7 +188,7 @@ export function DriversPage() {
             <TableBody>
               {drivers.map((driver) => {
                 const status = driver.status as DriverStatus
-                const colors = DRIVER_STATUS_COLORS[status]
+                const colors = DRIVER_STATUS_COLORS[status] || { dot: 'bg-slate-400', badge: 'bg-slate-100 text-slate-700' }
                 const expired = isCNHExpired(driver.cnh_expiration)
                 const expiring = isCNHExpiring(driver.cnh_expiration, 60)
                 const days = daysUntil(driver.cnh_expiration)
@@ -160,7 +197,6 @@ export function DriversPage() {
                   <tr
                     key={driver.id}
                     className="cursor-pointer hover:bg-slate-50"
-                    onClick={() => navigate(`/drivers/${driver.id}`)}
                   >
                     <Td>
                       <div className="flex items-center gap-3">
@@ -218,15 +254,19 @@ export function DriversPage() {
                     </Td>
                     <Td className="text-right">
                       <div className="flex items-center justify-end gap-1" onClick={(e) => e.stopPropagation()}>
-                        <Button variant="ghost" size="icon" onClick={() => navigate(`/drivers/${driver.id}`)}>
-                          <Eye className="h-4 w-4" />
-                        </Button>
                         <Button
                           variant="ghost"
                           size="icon"
                           onClick={() => { setEditingDriver(driver); setShowForm(true) }}
                         >
                           <Edit2 className="h-4 w-4" />
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          onClick={(e) => handleDeleteDriver(driver.id, e)}
+                        >
+                          <Trash2 className="h-4 w-4 text-red-500" />
                         </Button>
                       </div>
                     </Td>
@@ -242,7 +282,7 @@ export function DriversPage() {
         <DriverFormModal
           driver={editingDriver}
           onClose={() => setShowForm(false)}
-          onSave={() => setShowForm(false)}
+          onSave={handleSaveDriver}
         />
       )}
     </div>

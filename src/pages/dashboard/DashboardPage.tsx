@@ -1,18 +1,16 @@
-import { useMemo } from 'react'
+import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import {
   Truck,
-  Route,
-  AlertTriangle,
   ClipboardList,
-  CheckCircle2,
-  XCircle,
-  Clock,
-  Plus,
-  Activity,
+  AlertTriangle,
+  Route,
   TrendingUp,
-  Wrench,
+  Plus,
   ArrowRight,
+  ShieldCheck,
+  Calendar,
+  Loader2,
 } from 'lucide-react'
 import {
   BarChart,
@@ -22,305 +20,324 @@ import {
   CartesianGrid,
   Tooltip,
   ResponsiveContainer,
-  PieChart,
-  Pie,
-  Cell,
-  Legend,
 } from 'recharts'
-import { StatCard, Card, CardHeader, CardBody, Badge, Button } from '../../components/ui'
-import { useAuth } from '../../contexts/AuthContext'
+import { Card, CardHeader, CardBody, Button, Badge } from '../../components/ui'
+import { trucksApi, tripsApi, occurrencesApi, checklistsApi } from '../../lib/api'
 import {
-  MOCK_DASHBOARD_STATS,
-  MOCK_RECENT_ACTIVITIES,
-  MOCK_CHECKLISTS_BY_DAY,
-  MOCK_OCCURRENCES_BY_CATEGORY,
-  MOCK_TRUCKS,
-} from '../../lib/mock-data'
-import {
-  TRUCK_STATUS_LABELS,
-  TRUCK_STATUS_COLORS,
+  TRIP_STATUS_LABELS,
+  TRIP_STATUS_COLORS,
+  OCCURRENCE_SEVERITY_LABELS,
+  OCCURRENCE_SEVERITY_COLORS,
   formatDateTime,
-  formatDate,
+  formatMileage,
+  cn,
 } from '../../lib/utils'
-import type { TruckStatus } from '../../types'
-
-const PIE_COLORS = ['#3b82f6', '#f97316', '#22c55e', '#eab308', '#8b5cf6']
+import type { Truck as TruckType, Trip, Occurrence, Checklist } from '../../types'
 
 export function DashboardPage() {
-  const { user } = useAuth()
   const navigate = useNavigate()
-  const stats = MOCK_DASHBOARD_STATS
-  const activities = MOCK_RECENT_ACTIVITIES
+  const [trucks, setTrucks] = useState<TruckType[]>([])
+  const [trips, setTrips] = useState<Trip[]>([])
+  const [occurrences, setOccurrences] = useState<Occurrence[]>([])
+  const [checklists, setChecklists] = useState<Checklist[]>([])
+  const [loading, setLoading] = useState(true)
 
-  const greeting = useMemo(() => {
-    const hour = new Date().getHours()
-    if (hour < 12) return 'Bom dia'
-    if (hour < 18) return 'Boa tarde'
-    return 'Boa noite'
+  useEffect(() => {
+    async function loadDashboard() {
+      setLoading(true)
+      const [tData, trData, oData, cData] = await Promise.all([
+        trucksApi.getAll(),
+        tripsApi.getAll(),
+        occurrencesApi.getAll(),
+        checklistsApi.getAll(),
+      ])
+      setTrucks(tData)
+      setTrips(trData)
+      setOccurrences(oData)
+      setChecklists(cData)
+      setLoading(false)
+    }
+    void loadDashboard()
   }, [])
+
+  // KPI Calculations
+  const availableCount = trucks.filter((t) => t.status === 'available').length
+  const inRouteCount = trucks.filter((t) => t.status === 'in_route').length
+  const maintenanceCount = trucks.filter((t) => t.status === 'maintenance').length
+  const blockedCount = trucks.filter((t) => t.status === 'blocked').length
+
+  const openOccurrences = occurrences.filter((o) => o.status === 'open')
+  const completedChecklists = checklists.filter((c) => c.status === 'released' || c.status === 'completed')
+
+  const kpis = [
+    {
+      title: 'Total de Caminhões',
+      value: trucks.length.toString(),
+      icon: Truck,
+      color: 'bg-blue-500/10 text-blue-600',
+      description: `${availableCount} disponíveis · ${inRouteCount} em rota`,
+    },
+    {
+      title: 'Checklists Concluídos',
+      value: completedChecklists.length.toString(),
+      icon: ClipboardList,
+      color: 'bg-green-500/10 text-green-600',
+      description: `${checklists.length} realizados no total`,
+    },
+    {
+      title: 'Viagens em Rota',
+      value: inRouteCount.toString(),
+      icon: Route,
+      color: 'bg-indigo-500/10 text-indigo-600',
+      description: 'Entregas em andamento',
+    },
+    {
+      title: 'Ocorrências Abertas',
+      value: openOccurrences.length.toString(),
+      icon: AlertTriangle,
+      color: 'bg-red-500/10 text-red-600',
+      description: `${maintenanceCount} em manutenção`,
+    },
+  ]
+
+  const activeTrips = trips.filter((t) => t.status === 'in_route' || t.status === 'released')
 
   return (
     <div className="space-y-6">
-      {/* Header */}
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-        <div>
-          <h2 className="text-2xl font-bold text-slate-800">
-            {greeting}, {user?.name?.split(' ')[0]} 👋
-          </h2>
-          <p className="mt-0.5 text-sm text-slate-500">
-            {new Date().toLocaleDateString('pt-BR', {
-              weekday: 'long',
-              year: 'numeric',
-              month: 'long',
-              day: 'numeric',
-            })}
-          </p>
+      {/* Welcome banner */}
+      <div className="relative overflow-hidden rounded-2xl bg-gradient-to-r from-slate-900 via-blue-950 to-slate-900 p-6 text-white shadow-xl">
+        <div className="relative z-10 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <div className="flex items-center gap-2">
+              <ShieldCheck className="h-5 w-5 text-blue-400" />
+              <span className="text-xs font-semibold uppercase tracking-wider text-blue-400">
+                Sistema Operacional Ativo
+              </span>
+            </div>
+            <h1 className="mt-1 text-2xl font-bold">Shopping das Academias</h1>
+            <p className="text-sm text-slate-400">
+              Controle de frota, saída e retorno de caminhões em tempo real.
+            </p>
+          </div>
+          <div className="flex gap-2">
+            <Button
+              variant="primary"
+              size="md"
+              leftIcon={Plus}
+              onClick={() => navigate('/checklists/new')}
+            >
+              Novo Checklist
+            </Button>
+          </div>
         </div>
-        <Button
-          variant="primary"
-          leftIcon={Plus}
-          onClick={() => navigate('/checklists/new')}
-        >
-          Novo Checklist
-        </Button>
       </div>
 
       {/* KPI Cards */}
-      <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
-        <StatCard
-          title="Disponíveis"
-          value={stats.trucks_available}
-          icon={Truck}
-          color="green"
-          onClick={() => navigate('/trucks?status=available')}
-        />
-        <StatCard
-          title="Em Rota"
-          value={stats.trucks_in_route}
-          icon={Route}
-          color="blue"
-          onClick={() => navigate('/trips?status=in_route')}
-        />
-        <StatCard
-          title="Em Manutenção"
-          value={stats.trucks_maintenance}
-          icon={Wrench}
-          color="yellow"
-          onClick={() => navigate('/maintenance')}
-        />
-        <StatCard
-          title="Bloqueados"
-          value={stats.trucks_blocked}
-          icon={XCircle}
-          color="red"
-          onClick={() => navigate('/trucks?status=blocked')}
-        />
-      </div>
-
-      {/* Secondary KPIs */}
-      <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
-        <StatCard
-          title="Saídas Hoje"
-          value={stats.checklists_today_departure}
-          icon={ClipboardList}
-          color="blue"
-        />
-        <StatCard
-          title="Retornos Hoje"
-          value={stats.checklists_today_return}
-          icon={CheckCircle2}
-          color="green"
-        />
-        <StatCard
-          title="Ocorrências Abertas"
-          value={stats.open_occurrences}
-          icon={AlertTriangle}
-          color="yellow"
-          onClick={() => navigate('/occurrences')}
-        />
-        <StatCard
-          title="Críticas"
-          value={stats.critical_occurrences}
-          icon={AlertTriangle}
-          color="red"
-          onClick={() => navigate('/occurrences?severity=critical')}
-        />
-      </div>
-
-      {/* Charts row */}
-      <div className="grid gap-6 lg:grid-cols-5">
-        {/* Checklists by day chart */}
-        <Card className="lg:col-span-3">
-          <CardHeader>
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <TrendingUp className="h-5 w-5 text-blue-600" />
-                <h3 className="font-semibold text-slate-800">Checklists por Dia</h3>
-              </div>
-              <span className="text-xs text-slate-500">Últimos 7 dias</span>
-            </div>
-          </CardHeader>
-          <CardBody>
-            <ResponsiveContainer width="100%" height={200}>
-              <BarChart data={MOCK_CHECKLISTS_BY_DAY} barCategoryGap="30%">
-                <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" vertical={false} />
-                <XAxis dataKey="date" tick={{ fontSize: 11, fill: '#94a3b8' }} axisLine={false} tickLine={false} />
-                <YAxis tick={{ fontSize: 11, fill: '#94a3b8' }} axisLine={false} tickLine={false} />
-                <Tooltip
-                  contentStyle={{ borderRadius: 10, border: '1px solid #e2e8f0', fontSize: 12 }}
-                  cursor={{ fill: '#f8fafc' }}
-                />
-                <Bar dataKey="departure" name="Saída" fill="#3b82f6" radius={[4, 4, 0, 0]} />
-                <Bar dataKey="return" name="Retorno" fill="#22c55e" radius={[4, 4, 0, 0]} />
-              </BarChart>
-            </ResponsiveContainer>
-            <div className="mt-2 flex items-center justify-center gap-6">
-              <div className="flex items-center gap-1.5">
-                <span className="h-2.5 w-2.5 rounded-full bg-blue-500" />
-                <span className="text-xs text-slate-500">Saída</span>
-              </div>
-              <div className="flex items-center gap-1.5">
-                <span className="h-2.5 w-2.5 rounded-full bg-green-500" />
-                <span className="text-xs text-slate-500">Retorno</span>
-              </div>
-            </div>
-          </CardBody>
-        </Card>
-
-        {/* Occurrences by category chart */}
-        <Card className="lg:col-span-2">
-          <CardHeader>
-            <div className="flex items-center gap-2">
-              <Activity className="h-5 w-5 text-orange-500" />
-              <h3 className="font-semibold text-slate-800">Ocorrências por Categoria</h3>
-            </div>
-          </CardHeader>
-          <CardBody>
-            <ResponsiveContainer width="100%" height={200}>
-              <PieChart>
-                <Pie
-                  data={MOCK_OCCURRENCES_BY_CATEGORY}
-                  cx="50%"
-                  cy="50%"
-                  innerRadius={50}
-                  outerRadius={80}
-                  dataKey="count"
-                  nameKey="category"
-                >
-                  {MOCK_OCCURRENCES_BY_CATEGORY.map((_, i) => (
-                    <Cell key={i} fill={PIE_COLORS[i % PIE_COLORS.length]} />
-                  ))}
-                </Pie>
-                <Tooltip contentStyle={{ borderRadius: 10, border: '1px solid #e2e8f0', fontSize: 12 }} />
-              </PieChart>
-            </ResponsiveContainer>
-            <ul className="mt-2 space-y-1">
-              {MOCK_OCCURRENCES_BY_CATEGORY.map((c, i) => (
-                <li key={c.category} className="flex items-center justify-between text-xs">
-                  <span className="flex items-center gap-1.5">
-                    <span
-                      className="h-2 w-2 rounded-full"
-                      style={{ backgroundColor: PIE_COLORS[i % PIE_COLORS.length] }}
-                    />
-                    <span className="text-slate-600">{c.category}</span>
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+        {kpis.map((kpi) => {
+          const Icon = kpi.icon
+          return (
+            <Card key={kpi.title} className="transition-all hover:shadow-md">
+              <CardBody className="p-5">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-medium text-slate-500">{kpi.title}</span>
+                  <div className={cn('flex h-9 w-9 items-center justify-center rounded-xl', kpi.color)}>
+                    <Icon className="h-5 w-5" />
+                  </div>
+                </div>
+                <div className="mt-3">
+                  <span className="text-3xl font-bold text-slate-800">
+                    {loading ? <Loader2 className="h-6 w-6 animate-spin inline text-slate-400" /> : kpi.value}
                   </span>
-                  <span className="font-medium text-slate-800">{c.count}</span>
-                </li>
-              ))}
-            </ul>
-          </CardBody>
-        </Card>
+                  <p className="mt-1 text-xs text-slate-500">{kpi.description}</p>
+                </div>
+              </CardBody>
+            </Card>
+          )
+        })}
       </div>
 
-      {/* Fleet Status + Recent Activity */}
-      <div className="grid gap-6 lg:grid-cols-5">
-        {/* Fleet Status */}
-        <Card className="lg:col-span-2">
-          <CardHeader>
-            <div className="flex items-center justify-between">
-              <h3 className="font-semibold text-slate-800">Status da Frota</h3>
-              <Button variant="ghost" size="sm" rightIcon={ArrowRight} onClick={() => navigate('/trucks')}>
-                Ver todos
-              </Button>
-            </div>
-          </CardHeader>
-          <CardBody className="p-0">
-            <ul className="divide-y divide-slate-100">
-              {MOCK_TRUCKS.slice(0, 6).map((truck) => {
-                const status = truck.status as TruckStatus
-                const colors = TRUCK_STATUS_COLORS[status]
-                return (
-                  <li
-                    key={truck.id}
-                    className="flex cursor-pointer items-center gap-3 px-5 py-3.5 transition-colors hover:bg-slate-50"
-                    onClick={() => navigate(`/trucks/${truck.id}`)}
-                  >
-                    <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-blue-50">
-                      <Truck className="h-4 w-4 text-blue-600" />
-                    </div>
-                    <div className="min-w-0 flex-1">
-                      <p className="text-sm font-semibold text-slate-800">{truck.internal_code}</p>
-                      <p className="truncate text-xs text-slate-500">
-                        {truck.plate} · {truck.brand} {truck.model}
-                      </p>
-                    </div>
-                    <span
-                      className={`inline-flex items-center gap-1 rounded-full border px-2.5 py-1 text-xs font-medium ${colors.badge}`}
+      {/* Main content grid */}
+      <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
+        {/* Left column — Active Trips & Trucks */}
+        <div className="space-y-6 lg:col-span-2">
+          {/* Active Trips */}
+          <Card>
+            <CardHeader>
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <Route className="h-5 w-5 text-blue-600" />
+                  <h3 className="font-semibold text-slate-800">Viagens em Andamento</h3>
+                </div>
+                <Button variant="ghost" size="sm" rightIcon={ArrowRight} onClick={() => navigate('/trips')}>
+                  Ver todas
+                </Button>
+              </div>
+            </CardHeader>
+            <CardBody className="p-0">
+              {activeTrips.length === 0 ? (
+                <div className="flex flex-col items-center justify-center py-12 text-center text-slate-500">
+                  <Route className="mb-2 h-10 w-10 text-slate-300" />
+                  <p className="text-sm font-medium">Nenhuma viagem em andamento no momento</p>
+                  <p className="text-xs text-slate-400 mt-1">Inicie um novo checklist de saída para registrar uma viagem.</p>
+                </div>
+              ) : (
+                <ul className="divide-y divide-slate-100">
+                  {activeTrips.map((trip) => (
+                    <li key={trip.id} className="flex items-center justify-between p-4 hover:bg-slate-50">
+                      <div className="flex items-center gap-3">
+                        <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-blue-50">
+                          <Truck className="h-5 w-5 text-blue-600" />
+                        </div>
+                        <div>
+                          <p className="text-sm font-semibold text-slate-800">
+                            {trip.truck?.internal_code} — {trip.truck?.plate}
+                          </p>
+                          <p className="text-xs text-slate-500">
+                            {trip.driver?.name} · Destino: {trip.destination}
+                          </p>
+                        </div>
+                      </div>
+                      <span className={cn('rounded-full border px-2.5 py-1 text-xs font-medium', TRIP_STATUS_COLORS[trip.status])}>
+                        {TRIP_STATUS_LABELS[trip.status]}
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </CardBody>
+          </Card>
+
+          {/* Trucks Status Grid */}
+          <Card>
+            <CardHeader>
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <Truck className="h-5 w-5 text-slate-700" />
+                  <h3 className="font-semibold text-slate-800">Status dos Caminhões</h3>
+                </div>
+                <Button variant="ghost" size="sm" rightIcon={ArrowRight} onClick={() => navigate('/trucks')}>
+                  Gerenciar
+                </Button>
+              </div>
+            </CardHeader>
+            <CardBody>
+              {trucks.length === 0 ? (
+                <div className="text-center py-8 text-slate-500">
+                  <p className="text-sm">Nenhum caminhão cadastrado na base.</p>
+                  <Button variant="outline" size="sm" className="mt-3" onClick={() => navigate('/trucks')}>
+                    Cadastrar Caminhões
+                  </Button>
+                </div>
+              ) : (
+                <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
+                  {trucks.slice(0, 6).map((truck) => (
+                    <div
+                      key={truck.id}
+                      onClick={() => navigate(`/trucks/${truck.id}`)}
+                      className="cursor-pointer rounded-xl border border-slate-200 bg-white p-3.5 transition-all hover:border-blue-300 hover:shadow-sm"
                     >
-                      <span className={`h-1.5 w-1.5 rounded-full ${colors.dot}`} />
-                      {TRUCK_STATUS_LABELS[status]}
-                    </span>
-                  </li>
-                )
-              })}
-            </ul>
-          </CardBody>
-        </Card>
-
-        {/* Recent Activity */}
-        <Card className="lg:col-span-3">
-          <CardHeader>
-            <h3 className="font-semibold text-slate-800">Atividades Recentes</h3>
-          </CardHeader>
-          <CardBody className="p-0">
-            <ul className="divide-y divide-slate-100">
-              {activities.map((activity) => {
-                const iconMap: Record<string, React.ComponentType<{ className?: string }>> = {
-                  checklist_departure: ClipboardList,
-                  checklist_return: CheckCircle2,
-                  occurrence_created: AlertTriangle,
-                  maintenance_scheduled: Wrench,
-                  truck_status_changed: XCircle,
-                  trip_released: Route,
-                }
-                const colorMap: Record<string, string> = {
-                  checklist_departure: 'bg-blue-100 text-blue-600',
-                  checklist_return: 'bg-green-100 text-green-600',
-                  occurrence_created: 'bg-orange-100 text-orange-600',
-                  maintenance_scheduled: 'bg-yellow-100 text-yellow-600',
-                  truck_status_changed: 'bg-red-100 text-red-600',
-                  trip_released: 'bg-indigo-100 text-indigo-600',
-                }
-                const Icon = iconMap[activity.type] ?? ClipboardList
-                const colorClass = colorMap[activity.type] ?? 'bg-slate-100 text-slate-600'
-
-                return (
-                  <li key={activity.id} className="flex items-start gap-3 px-5 py-4">
-                    <div className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-full ${colorClass}`}>
-                      <Icon className="h-4 w-4" />
+                      <div className="flex items-center justify-between">
+                        <span className="font-bold text-slate-800">{truck.internal_code}</span>
+                        <span className={cn('h-2 w-2 rounded-full', 
+                          truck.status === 'available' ? 'bg-green-500' :
+                          truck.status === 'in_route' ? 'bg-blue-500' :
+                          truck.status === 'maintenance' ? 'bg-yellow-500' : 'bg-red-500'
+                        )} />
+                      </div>
+                      <p className="text-xs text-slate-500 mt-1">{truck.plate}</p>
+                      <p className="text-xs font-medium text-slate-700 mt-2">{formatMileage(truck.mileage)}</p>
                     </div>
-                    <div className="min-w-0 flex-1">
-                      <p className="text-sm text-slate-700">{activity.description}</p>
-                      <p className="mt-0.5 text-xs text-slate-400">
-                        {activity.user_name} · {formatDateTime(activity.created_at)}
-                      </p>
-                    </div>
-                  </li>
-                )
-              })}
-            </ul>
-          </CardBody>
-        </Card>
+                  ))}
+                </div>
+              )}
+            </CardBody>
+          </Card>
+        </div>
+
+        {/* Right column — Recent Occurrences & Quick Actions */}
+        <div className="space-y-6">
+          {/* Quick actions */}
+          <Card>
+            <CardHeader>
+              <h3 className="font-semibold text-slate-800">Ações Rápidas</h3>
+            </CardHeader>
+            <CardBody className="space-y-2">
+              <Button
+                variant="primary"
+                className="w-full justify-start"
+                leftIcon={ClipboardList}
+                onClick={() => navigate('/checklists/new')}
+              >
+                Novo Checklist de Saída
+              </Button>
+              <Button
+                variant="outline"
+                className="w-full justify-start"
+                leftIcon={Truck}
+                onClick={() => navigate('/trucks')}
+              >
+                Cadastrar Caminhão
+              </Button>
+              <Button
+                variant="outline"
+                className="w-full justify-start"
+                leftIcon={AlertTriangle}
+                onClick={() => navigate('/occurrences')}
+              >
+                Ver Ocorrências
+              </Button>
+            </CardBody>
+          </Card>
+
+          {/* Recent Occurrences */}
+          <Card>
+            <CardHeader>
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <AlertTriangle className="h-5 w-5 text-orange-500" />
+                  <h3 className="font-semibold text-slate-800">Ocorrências Recentes</h3>
+                </div>
+                <Button variant="ghost" size="sm" onClick={() => navigate('/occurrences')}>
+                  Ver todas
+                </Button>
+              </div>
+            </CardHeader>
+            <CardBody className="p-0">
+              {occurrences.length === 0 ? (
+                <div className="py-8 text-center text-xs text-slate-400">
+                  Nenhuma ocorrência registrada
+                </div>
+              ) : (
+                <ul className="divide-y divide-slate-100">
+                  {occurrences.slice(0, 4).map((occ) => {
+                    const sevColors = OCCURRENCE_SEVERITY_COLORS[occ.severity] || { badge: 'bg-slate-100 text-slate-700', dot: 'bg-slate-400' }
+                    return (
+                      <li key={occ.id} className="p-4">
+                        <div className="flex items-start gap-2">
+                          <span className={cn('mt-0.5 rounded px-1.5 py-0.5 text-2xs font-semibold', sevColors.badge)}>
+                            {OCCURRENCE_SEVERITY_LABELS[occ.severity]}
+                          </span>
+                          <div className="min-w-0 flex-1">
+                            <p className="text-xs font-semibold text-slate-800">
+                              {occ.truck?.internal_code || 'Veículo'}
+                            </p>
+                            <p className="text-xs text-slate-600 mt-0.5 line-clamp-2">
+                              {occ.description}
+                            </p>
+                            <p className="text-2xs text-slate-400 mt-1">
+                              {formatDateTime(occ.created_at)}
+                            </p>
+                          </div>
+                        </div>
+                      </li>
+                    )
+                  })}
+                </ul>
+              )}
+            </CardBody>
+          </Card>
+        </div>
       </div>
     </div>
   )
