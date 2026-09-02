@@ -7,7 +7,47 @@ import type {
   ChecklistItem,
   Occurrence,
   Maintenance,
+  User,
+  UserRole,
 } from '../types'
+
+// ============================================================
+// USERS API (Supabase Real)
+// ============================================================
+export const usersApi = {
+  async getAll(): Promise<User[]> {
+    const { data, error } = await supabase
+      .from('users')
+      .select('*')
+      .order('name', { ascending: true })
+
+    if (error) {
+      console.error('Erro ao buscar usuários:', error)
+      return []
+    }
+    return (data as User[]) || []
+  },
+
+  async updateRole(userId: string, role: UserRole): Promise<{ error?: string }> {
+    const { error } = await supabase
+      .from('users')
+      .update({ role, updated_at: new Date().toISOString() })
+      .eq('id', userId)
+
+    if (error) return { error: error.message }
+    return {}
+  },
+
+  async updateStatus(userId: string, status: 'active' | 'inactive' | 'blocked'): Promise<{ error?: string }> {
+    const { error } = await supabase
+      .from('users')
+      .update({ status, updated_at: new Date().toISOString() })
+      .eq('id', userId)
+
+    if (error) return { error: error.message }
+    return {}
+  },
+}
 
 // ============================================================
 // TRUCKS API (Supabase Real)
