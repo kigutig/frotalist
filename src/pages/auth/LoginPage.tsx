@@ -1,8 +1,7 @@
 import { useState } from 'react'
 import { Navigate } from 'react-router-dom'
-import { Truck, Eye, EyeOff, Shield, AlertTriangle, CheckCircle2, UserPlus, LogIn } from 'lucide-react'
+import { Truck, Eye, EyeOff, AlertTriangle, CheckCircle2, UserPlus, LogIn } from 'lucide-react'
 import { useAuth } from '../../contexts/AuthContext'
-import type { UserRole } from '../../types'
 
 export function LoginPage() {
   const { signIn, signUp, isAuthenticated, isLoading } = useAuth()

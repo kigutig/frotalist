@@ -18,6 +18,7 @@ interface AuthContextType {
   role: UserRole | null
   isAdmin: boolean
   isOperator: boolean
+  isDriver: boolean
   signIn: (email: string, password: string) => Promise<{ error?: string }>
   signUp: (data: { name: string; email: string; password: string; role?: UserRole }) => Promise<{ error?: string }>
   signOut: () => Promise<void>

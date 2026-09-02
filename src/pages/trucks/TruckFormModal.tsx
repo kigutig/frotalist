@@ -174,7 +174,7 @@ export function TruckFormModal({ truck, onClose, onSave }: TruckFormModalProps) 
             <Select
               label="Status"
               value={form.status}
-              onChange={(e) => setForm({ ...form, status: e.target.value })}
+              onChange={(e) => setForm({ ...form, status: e.target.value as TruckStatus })}
               options={STATUS_OPTIONS}
             />
           </div>

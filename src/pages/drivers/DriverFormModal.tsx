@@ -124,7 +124,7 @@ export function DriverFormModal({ driver, onClose, onSave }: DriverFormModalProp
             <Select
               label="Categoria"
               value={form.cnh_category}
-              onChange={(e) => setForm({ ...form, cnh_category: e.target.value })}
+              onChange={(e) => setForm({ ...form, cnh_category: e.target.value as CNHCategory })}
               options={CNH_CATEGORIES}
             />
             <Input
@@ -140,7 +140,7 @@ export function DriverFormModal({ driver, onClose, onSave }: DriverFormModalProp
           <Select
             label="Status"
             value={form.status}
-            onChange={(e) => setForm({ ...form, status: e.target.value })}
+            onChange={(e) => setForm({ ...form, status: e.target.value as DriverStatus })}
             options={STATUS_OPTIONS}
           />
 

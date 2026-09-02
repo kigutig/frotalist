@@ -1,6 +1,6 @@
 import { useState, useCallback } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
-import { ArrowLeft, ArrowRight, Check, X, AlertTriangle, Truck } from 'lucide-react'
+import { ArrowLeft, ArrowRight, Check, X, Truck } from 'lucide-react'
 import { Button, ProgressBar, Alert } from '../../components/ui'
 import { Step1_Identification } from './steps/Step1_Identification'
 import { Step2_Documentation } from './steps/Step2_Documentation'
@@ -14,7 +14,7 @@ import { Step9_Review } from './steps/Step9_Review'
 import { Step10_Signature } from './steps/Step10_Signature'
 import { Step11_Release } from './steps/Step11_Release'
 import { DEPARTURE_CHECKLIST_ITEMS } from '../../lib/checklist-items'
-import type { ChecklistFormState, CheckItemStatus, OccurrenceSeverity } from '../../types'
+import type { ChecklistFormState, CheckItemStatus } from '../../types'
 import { cn } from '../../lib/utils'
 
 const STEPS = [

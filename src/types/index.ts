@@ -119,18 +119,23 @@ export interface Checklist {
   released_at?: string
   mileage: number
   destination?: string
+  cargo_volumes?: number
+  cargo_notes?: string
   notes?: string
-  created_by: string
+  created_by?: string
   approved_by?: string
   released_by?: string
   release_justification?: string
+  driver_signature?: string
+  responsible_signature?: string
+  responsible_name?: string
   items?: ChecklistItem[]
   occurrences?: Occurrence[]
   photos?: ChecklistPhoto[]
   signatures?: Signature[]
   truck?: Truck
   driver?: Driver
-  created_at: string
+  created_at?: string
 }
 
 // ---- ITENS DO CHECKLIST ----
@@ -146,6 +151,7 @@ export type ChecklistCategory =
   | 'return_vehicle'
   | 'return_interior'
   | 'return_cargo'
+  | string
 
 export interface ChecklistItem {
   id: string
@@ -156,7 +162,7 @@ export interface ChecklistItem {
   status: CheckItemStatus
   observation?: string
   is_required: boolean
-  created_at: string
+  created_at?: string
 }
 
 // ---- OCORRÊNCIAS ----
@@ -167,8 +173,8 @@ export type OccurrenceStatus = 'open' | 'in_progress' | 'resolved' | 'sent_to_ma
 
 export interface Occurrence {
   id: string
-  checklist_id: string
-  truck_id: string
+  checklist_id?: string
+  truck_id?: string
   trip_id?: string
   item_key?: string
   category?: string
@@ -182,6 +188,7 @@ export interface Occurrence {
   resolved_by?: string
   maintenance_id?: string
   photos?: ChecklistPhoto[]
+  truck?: Truck
 }
 
 // ---- FOTOS ----
