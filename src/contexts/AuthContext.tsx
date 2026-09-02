@@ -128,23 +128,32 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, [loadUserProfile])
 
   const signIn = useCallback(async (email: string, password: string): Promise<{ error?: string }> => {
-    if (IS_DEMO_MODE) {
-      // Demo login: accept any of the mock user emails with any password
-      const found = MOCK_USERS.find((u) => u.email.toLowerCase() === email.toLowerCase())
-      if (found && (password === 'demo123' || password.length >= 3)) {
-        setUser(found)
-        localStorage.setItem('demo_user', JSON.stringify(found))
-        return {}
-      }
-      return { error: 'Email ou senha incorretos. Use um email de demonstração com senha "demo123".' }
-    }
+    try {
+      const { data, error } = await supabase.auth.signInWithPassword({
+        email: email.trim(),
+        password,
+      })
 
-    const { error } = await supabase.auth.signInWithPassword({ email, password })
-    if (error) {
-      return { error: 'Email ou senha incorretos: ' + error.message }
+      if (error) {
+        if (error.message.includes('Invalid login credentials')) {
+          return { error: 'Email ou senha incorretos. Caso ainda não tenha conta, cadastre-se na aba "Criar Conta".' }
+        }
+        if (error.message.includes('Email not confirmed')) {
+          return { error: 'Email não confirmado. Verifique sua caixa de entrada no Supabase.' }
+        }
+        return { error: error.message }
+      }
+
+      if (data?.user) {
+        const profile = await loadUserProfile(data.user.id, data.user.email)
+        setUser(profile)
+      }
+
+      return {}
+    } catch (err: unknown) {
+      return { error: err instanceof Error ? err.message : 'Erro ao realizar login' }
     }
-    return {}
-  }, [])
+  }, [loadUserProfile])
 
   const signUp = useCallback(async ({
     name,
