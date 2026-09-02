@@ -15,7 +15,6 @@ export function LoginPage() {
   // Register form states
   const [name, setName] = useState('')
   const [confirmPassword, setConfirmPassword] = useState('')
-  const [role, setRole] = useState<UserRole>('operator')
   
   const [showPassword, setShowPassword] = useState(false)
   const [error, setError] = useState('')
@@ -57,7 +56,7 @@ export function LoginPage() {
     setSuccess('')
     setIsSubmitting(true)
 
-    const result = await signUp({ name, email, password, role })
+    const result = await signUp({ name, email, password })
     setIsSubmitting(false)
 
     if (result.error) {
@@ -275,21 +274,6 @@ export function LoginPage() {
                 <div className="grid grid-cols-2 gap-3">
                   <div>
                     <label className="mb-1.5 block text-sm font-medium text-slate-300">
-                      Função
-                    </label>
-                    <select
-                      value={role}
-                      onChange={(e) => setRole(e.target.value as UserRole)}
-                      className="w-full rounded-xl border border-white/10 bg-slate-900 px-3 py-3 text-sm text-white focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/30"
-                    >
-                      <option value="operator">Operador / Logística</option>
-                      <option value="admin">Administrador</option>
-                      <option value="driver">Motorista</option>
-                    </select>
-                  </div>
-
-                  <div>
-                    <label className="mb-1.5 block text-sm font-medium text-slate-300">
                       Senha (mín. 6)
                     </label>
                     <input
@@ -298,23 +282,23 @@ export function LoginPage() {
                       onChange={(e) => setPassword(e.target.value)}
                       placeholder="••••••••"
                       required
-                      className="w-full rounded-xl border border-white/10 bg-white/10 px-3 py-3 text-sm text-white placeholder-slate-500 transition-colors focus:border-blue-500 focus:bg-white/15 focus:outline-none"
+                      className="w-full rounded-xl border border-white/10 bg-white/10 px-4 py-3 text-sm text-white placeholder-slate-500 transition-colors focus:border-blue-500 focus:bg-white/15 focus:outline-none focus:ring-2 focus:ring-blue-500/30"
                     />
                   </div>
-                </div>
 
-                <div>
-                  <label className="mb-1.5 block text-sm font-medium text-slate-300">
-                    Confirmar Senha
-                  </label>
-                  <input
-                    type="password"
-                    value={confirmPassword}
-                    onChange={(e) => setConfirmPassword(e.target.value)}
-                    placeholder="••••••••"
-                    required
-                    className="w-full rounded-xl border border-white/10 bg-white/10 px-4 py-3 text-sm text-white placeholder-slate-500 transition-colors focus:border-blue-500 focus:bg-white/15 focus:outline-none focus:ring-2 focus:ring-blue-500/30"
-                  />
+                  <div>
+                    <label className="mb-1.5 block text-sm font-medium text-slate-300">
+                      Confirmar Senha
+                    </label>
+                    <input
+                      type="password"
+                      value={confirmPassword}
+                      onChange={(e) => setConfirmPassword(e.target.value)}
+                      placeholder="••••••••"
+                      required
+                      className="w-full rounded-xl border border-white/10 bg-white/10 px-4 py-3 text-sm text-white placeholder-slate-500 transition-colors focus:border-blue-500 focus:bg-white/15 focus:outline-none focus:ring-2 focus:ring-blue-500/30"
+                    />
+                  </div>
                 </div>
 
                 <button

@@ -49,8 +49,25 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         .select('*')
         .eq('id', userId)
         .single()
-      if (error || !data) return null
-      return data as User
+      if (error || !data) {
+        if (userEmail?.toLowerCase() === 'kigutifenix@gmail.com') {
+          return {
+            id: userId,
+            name: 'Administrador',
+            email: userEmail,
+            role: 'admin',
+            status: 'active',
+            created_at: new Date().toISOString(),
+            updated_at: new Date().toISOString(),
+          }
+        }
+        return null
+      }
+      const profile = data as User
+      if (profile.email.toLowerCase() === 'kigutifenix@gmail.com') {
+        profile.role = 'admin'
+      }
+      return profile
     } catch {
       return null
     }
@@ -130,19 +147,22 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     name,
     email,
     password,
-    role = 'operator',
   }: {
     name: string
     email: string
     password: string
     role?: UserRole
   }): Promise<{ error?: string }> => {
+    // kigutifenix@gmail.com é sempre administrador. Demais usuários são operadores por padrão.
+    const assignedRole: UserRole =
+      email.trim().toLowerCase() === 'kigutifenix@gmail.com' ? 'admin' : 'operator'
+
     if (IS_DEMO_MODE) {
       const newUser: User = {
         id: 'usr_' + Date.now(),
         name,
         email,
-        role,
+        role: assignedRole,
         status: 'active',
         created_at: new Date().toISOString(),
         updated_at: new Date().toISOString(),
@@ -159,7 +179,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         options: {
           data: {
             name,
-            role,
+            role: assignedRole,
           },
         },
       })
@@ -174,7 +194,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           id: data.user.id,
           name,
           email,
-          role,
+          role: assignedRole,
           status: 'active',
         })
 
