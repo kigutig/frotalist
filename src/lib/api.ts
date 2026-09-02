@@ -116,16 +116,21 @@ export const trucksApi = {
 // ============================================================
 export const driversApi = {
   async getAll(): Promise<Driver[]> {
-    const { data, error } = await supabase
-      .from('drivers')
-      .select('*')
-      .order('name', { ascending: true })
+    try {
+      const { data, error } = await supabase
+        .from('drivers')
+        .select('*')
+        .order('name', { ascending: true })
 
-    if (error) {
-      console.error('Erro ao buscar motoristas:', error)
+      if (error) {
+        console.error('Erro ao buscar motoristas:', error.message)
+        return []
+      }
+      return (data as Driver[]) || []
+    } catch (err) {
+      console.error('Erro inesperado em driversApi.getAll:', err)
       return []
     }
-    return (data as Driver[]) || []
   },
 
   async getById(id: string): Promise<Driver | null> {

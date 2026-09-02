@@ -209,6 +209,15 @@ export function DriversPage() {
                             <Phone className="h-3 w-3" />
                             {driver.phone}
                           </p>
+                          {driver.user ? (
+                            <span className="inline-flex items-center gap-1 mt-1 rounded bg-indigo-50 px-1.5 py-0.5 text-2xs font-medium text-indigo-700">
+                              🔗 {driver.user.email}
+                            </span>
+                          ) : driver.user_id ? (
+                            <span className="inline-flex items-center gap-1 mt-1 rounded bg-indigo-50 px-1.5 py-0.5 text-2xs font-medium text-indigo-700">
+                              🔗 Conta vinculada
+                            </span>
+                          ) : null}
                         </div>
                       </div>
                     </Td>

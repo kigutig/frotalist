@@ -1,7 +1,8 @@
-import { useState } from 'react'
-import { X, User } from 'lucide-react'
+import { useState, useEffect } from 'react'
+import { X, User, Link as LinkIcon } from 'lucide-react'
 import { Button, Input, Select, Textarea } from '../../components/ui'
-import type { Driver, DriverStatus, CNHCategory } from '../../types'
+import { usersApi } from '../../lib/api'
+import type { Driver, DriverStatus, CNHCategory, User as UserType } from '../../types'
 
 interface DriverFormModalProps {
   driver?: Driver | null
@@ -29,7 +30,11 @@ const STATUS_OPTIONS = [
 
 export function DriverFormModal({ driver, onClose, onSave }: DriverFormModalProps) {
   const isEdit = !!driver
+  const [users, setUsers] = useState<UserType[]>([])
+  const [loadingUsers, setLoadingUsers] = useState(false)
+
   const [form, setForm] = useState({
+    user_id: driver?.user_id ?? '',
     name: driver?.name ?? '',
     cpf: driver?.cpf ?? '',
     phone: driver?.phone ?? '',
@@ -41,6 +46,26 @@ export function DriverFormModal({ driver, onClose, onSave }: DriverFormModalProp
   })
   const [errors, setErrors] = useState<Record<string, string>>({})
   const [isSubmitting, setIsSubmitting] = useState(false)
+
+  // Carregar lista de usuários para associação
+  useEffect(() => {
+    async function loadUsers() {
+      setLoadingUsers(true)
+      const data = await usersApi.getAll()
+      setUsers(data)
+      setLoadingUsers(false)
+    }
+    void loadUsers()
+  }, [])
+
+  function handleSelectUser(userId: string) {
+    const selected = users.find((u) => u.id === userId)
+    setForm((prev) => ({
+      ...prev,
+      user_id: userId,
+      name: prev.name || selected?.name || '',
+    }))
+  }
 
   function validate() {
     const e: Record<string, string> = {}
@@ -57,10 +82,22 @@ export function DriverFormModal({ driver, onClose, onSave }: DriverFormModalProp
     const errs = validate()
     if (Object.keys(errs).length > 0) { setErrors(errs); return }
     setIsSubmitting(true)
-    await new Promise((r) => setTimeout(r, 500))
-    onSave({ ...form, status: form.status as DriverStatus, cnh_category: form.cnh_category as CNHCategory })
+    onSave({
+      ...form,
+      user_id: form.user_id || undefined,
+      status: form.status as DriverStatus,
+      cnh_category: form.cnh_category as CNHCategory,
+    })
     setIsSubmitting(false)
   }
+
+  const userOptions = [
+    { value: '', label: 'Nenhum (não associar a uma conta de usuário)' },
+    ...users.map((u) => ({
+      value: u.id,
+      label: `${u.name || 'Sem nome'} (${u.email})`,
+    })),
+  ]
 
   return (
     <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto p-4">
@@ -75,18 +112,38 @@ export function DriverFormModal({ driver, onClose, onSave }: DriverFormModalProp
               <h2 className="font-semibold text-slate-800">
                 {isEdit ? 'Editar Motorista' : 'Novo Motorista'}
               </h2>
-              <p className="text-xs text-slate-500">Preencha os dados do motorista</p>
+              <p className="text-xs text-slate-500">
+                {isEdit ? `Atualizando ${driver?.name}` : 'Cadastre um novo motorista na frota'}
+              </p>
             </div>
           </div>
-          <button onClick={onClose} className="rounded-lg p-2 text-slate-400 hover:bg-slate-100">
+          <button
+            onClick={onClose}
+            className="rounded-lg p-2 text-slate-400 hover:bg-slate-100"
+          >
             <X className="h-4 w-4" />
           </button>
         </div>
 
-        <form onSubmit={handleSubmit} className="p-6 space-y-5">
+        <form onSubmit={handleSubmit} className="p-6 space-y-4">
+          {/* Vínculo com Usuário */}
+          <div className="rounded-xl border border-indigo-100 bg-indigo-50/60 p-3.5 space-y-2">
+            <div className="flex items-center gap-2 text-indigo-900 font-semibold text-xs uppercase tracking-wider">
+              <LinkIcon className="h-3.5 w-3.5" />
+              <span>Associar a Usuário do Sistema</span>
+            </div>
+            <Select
+              value={form.user_id}
+              onChange={(e) => handleSelectUser(e.target.value)}
+              options={userOptions}
+              placeholder={loadingUsers ? 'Carregando contas de usuários...' : 'Selecione a conta do usuário...'}
+              hint="Permite que o motorista faça login e visualize apenas suas viagens e checklists"
+            />
+          </div>
+
           <Input
             label="Nome Completo"
-            placeholder="João da Silva"
+            placeholder="Nome do motorista..."
             value={form.name}
             onChange={(e) => setForm({ ...form, name: e.target.value })}
             error={errors.name}
@@ -104,7 +161,7 @@ export function DriverFormModal({ driver, onClose, onSave }: DriverFormModalProp
             />
             <Input
               label="Telefone"
-              placeholder="(11) 99999-0000"
+              placeholder="(11) 99999-9999"
               value={form.phone}
               onChange={(e) => setForm({ ...form, phone: e.target.value })}
               error={errors.phone}
@@ -112,15 +169,16 @@ export function DriverFormModal({ driver, onClose, onSave }: DriverFormModalProp
             />
           </div>
 
-          <div className="grid grid-cols-3 gap-4">
-            <Input
-              label="Número da CNH"
-              placeholder="12345678901"
-              value={form.cnh}
-              onChange={(e) => setForm({ ...form, cnh: e.target.value })}
-              error={errors.cnh}
-              required
-            />
+          <Input
+            label="Número da CNH"
+            placeholder="Registro da CNH..."
+            value={form.cnh}
+            onChange={(e) => setForm({ ...form, cnh: e.target.value })}
+            error={errors.cnh}
+            required
+          />
+
+          <div className="grid grid-cols-2 gap-4">
             <Select
               label="Categoria"
               value={form.cnh_category}
@@ -146,14 +204,16 @@ export function DriverFormModal({ driver, onClose, onSave }: DriverFormModalProp
 
           <Textarea
             label="Observações"
-            placeholder="Observações adicionais..."
+            placeholder="Informações adicionais..."
             value={form.notes}
             onChange={(e) => setForm({ ...form, notes: e.target.value })}
             rows={3}
           />
 
           <div className="flex items-center justify-end gap-3 border-t border-slate-100 pt-4">
-            <Button variant="outline" onClick={onClose} type="button">Cancelar</Button>
+            <Button variant="outline" onClick={onClose} type="button">
+              Cancelar
+            </Button>
             <Button variant="primary" loading={isSubmitting} type="submit">
               {isEdit ? 'Salvar Alterações' : 'Cadastrar Motorista'}
             </Button>

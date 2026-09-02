@@ -52,6 +52,7 @@ export type CNHCategory = 'A' | 'B' | 'C' | 'D' | 'E' | 'AB' | 'AC' | 'AD' | 'AE
 
 export interface Driver {
   id: string
+  user_id?: string
   name: string
   cpf: string
   phone: string
@@ -63,6 +64,7 @@ export interface Driver {
   photo_url?: string
   created_at: string
   updated_at?: string
+  user?: User
 }
 
 // ---- VIAGENS ----
