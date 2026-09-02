@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { Navigate } from 'react-router-dom'
 import { Truck, Eye, EyeOff, AlertTriangle, CheckCircle2, UserPlus, LogIn } from 'lucide-react'
 import { useAuth } from '../../contexts/AuthContext'
+import { supabase } from '../../lib/supabase'
 
 export function LoginPage() {
   const { signIn, signUp, isAuthenticated, isLoading } = useAuth()
@@ -222,6 +223,33 @@ export function LoginPage() {
                       {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                     </button>
                   </div>
+                </div>
+
+                <div className="flex items-center justify-between text-xs">
+                  <span className="text-slate-400">Esqueceu a senha?</span>
+                  <button
+                    type="button"
+                    onClick={async () => {
+                      if (!email) {
+                        setError('Digite seu email no campo acima para receber o link de redefinição.')
+                        return
+                      }
+                      setError('')
+                      setIsSubmitting(true)
+                      const { error: resetErr } = await supabase.auth.resetPasswordForEmail(email.trim(), {
+                        redirectTo: window.location.origin + '/login',
+                      })
+                      setIsSubmitting(false)
+                      if (resetErr) {
+                        setError('Erro ao enviar link: ' + resetErr.message)
+                      } else {
+                        setSuccess('Email de redefinição enviado! Verifique sua caixa de entrada e spam.')
+                      }
+                    }}
+                    className="text-blue-400 hover:text-blue-300 font-medium transition-colors"
+                  >
+                    Redefinir Senha
+                  </button>
                 </div>
 
                 <button
