@@ -132,7 +132,7 @@ export function TripsPage() {
                             Registrar Retorno
                           </Button>
                         )}
-                        <Button variant="ghost" size="icon">
+                        <Button variant="ghost" size="icon" onClick={() => navigate(`/trips/${trip.id}`)}>
                           <Eye className="h-4 w-4" />
                         </Button>
                       </div>

@@ -197,6 +197,7 @@ export function DriversPage() {
                   <tr
                     key={driver.id}
                     className="cursor-pointer hover:bg-slate-50"
+                    onClick={() => navigate(`/drivers/${driver.id}`)}
                   >
                     <Td>
                       <div className="flex items-center gap-3">

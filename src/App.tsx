@@ -7,7 +7,10 @@ import { DashboardPage } from './pages/dashboard/DashboardPage'
 import { TrucksPage } from './pages/trucks/TrucksPage'
 import { TruckDetailPage } from './pages/trucks/TruckDetailPage'
 import { DriversPage } from './pages/drivers/DriversPage'
+import { DriverDetailPage } from './pages/drivers/DriverDetailPage'
 import { TripsPage } from './pages/trips/TripsPage'
+import { TripDetailPage } from './pages/trips/TripDetailPage'
+import { TripReturnPage } from './pages/trips/TripReturnPage'
 import { ChecklistsPage } from './pages/checklists/ChecklistsPage'
 import { ChecklistWizard } from './pages/checklists/ChecklistWizard'
 import { ChecklistDetailPage } from './pages/checklists/ChecklistDetailPage'
@@ -51,9 +54,10 @@ export default function App() {
             <Route path="trucks" element={<TrucksPage />} />
             <Route path="trucks/:id" element={<TruckDetailPage />} />
             <Route path="drivers" element={<DriversPage />} />
-            <Route path="drivers/:id" element={<DriversPage />} />
+            <Route path="drivers/:id" element={<DriverDetailPage />} />
             <Route path="trips" element={<TripsPage />} />
-            <Route path="trips/:id" element={<TripsPage />} />
+            <Route path="trips/:id" element={<TripDetailPage />} />
+            <Route path="trips/:id/return" element={<TripReturnPage />} />
             <Route path="checklists" element={<ChecklistsPage />} />
             <Route path="checklists/new" element={<ChecklistWizard />} />
             <Route path="checklists/:id" element={<ChecklistDetailPage />} />
