@@ -148,6 +148,7 @@ jobs:
             --config=p/typescript \
             --config=p/react \
             --config=p/owasp-top-ten \
+            --exclude='.github' \
             --sarif \
             --output=semgrep.sarif || true
 

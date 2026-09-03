@@ -152,11 +152,21 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
       // Se der erro no Supabase, mas for o Administrador Principal
       if (isMainAdmin) {
-        // Verifica se há uma senha de administrador gravada localmente
-        const savedAdminPass = localStorage.getItem('admin_pwd')
-        if (!savedAdminPass || savedAdminPass === password) {
-          // Se for a primeira vez ou a senha bater, grava a senha e libera o acesso direto como Admin
-          localStorage.setItem('admin_pwd', password)
+        // Gera o hash SHA-256 da senha para nunca armazenar credenciais em texto claro (CWE-312)
+        const encoder = new TextEncoder()
+        const data = encoder.encode(password)
+        const hashBuffer = await crypto.subtle.digest('SHA-256', data)
+        const hashHex = Array.from(new Uint8Array(hashBuffer))
+          .map((b) => b.toString(16).padStart(2, '0'))
+          .join('')
+
+        // Remove chave legada em texto claro se existir
+        localStorage.removeItem('admin_pwd')
+
+        const savedAdminHash = localStorage.getItem('admin_pwd_hash')
+        if (!savedAdminHash || savedAdminHash === hashHex) {
+          // Grava apenas o hash seguro
+          localStorage.setItem('admin_pwd_hash', hashHex)
 
           const adminProfile: User = {
             id: 'admin_kiguti',
