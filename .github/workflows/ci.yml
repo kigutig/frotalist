@@ -183,8 +183,7 @@ jobs:
           npx license-checker \
             --excludePrivatePackages \
             --excludeDevDependencies \
-            --onlyAllow "MIT;ISC;BSD-2-Clause;BSD-3-Clause;Apache-2.0;CC0-1.0;CC-BY-3.0;CC-BY-4.0;Unlicense;0BSD;Python-2.0;MPL-2.0;BlueOak-1.0.0" \
-            --excludePackages "xlsx"
+            --onlyAllow "MIT;ISC;BSD-2-Clause;BSD-3-Clause;Apache-2.0;CC0-1.0;CC-BY-3.0;CC-BY-4.0;Unlicense;0BSD;Python-2.0;MPL-2.0;BlueOak-1.0.0"
 
   # ──────────────────────────────────────────────────────────
   # 7. BUILD — final build gate (depends on all jobs)
