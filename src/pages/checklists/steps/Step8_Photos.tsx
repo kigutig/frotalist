@@ -1,5 +1,5 @@
 import { useState, useRef } from 'react'
-import { Camera, Upload, Trash2, X, ImageIcon } from 'lucide-react'
+import { Camera, Upload, X } from 'lucide-react'
 import { Button } from '../../../components/ui'
 import type { StepProps } from './shared'
 import type { ChecklistPhoto } from '../../../types'

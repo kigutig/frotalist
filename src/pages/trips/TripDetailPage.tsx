@@ -6,13 +6,7 @@ import {
   Loader2,
   MapPin,
   ArrowRight,
-  User,
   Truck,
-  Calendar,
-  Gauge,
-  Package,
-  Clock,
-  FileText,
   ClipboardList,
 } from 'lucide-react'
 import { Card, CardHeader, CardBody, Button } from '../../components/ui'

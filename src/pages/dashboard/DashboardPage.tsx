@@ -5,23 +5,12 @@ import {
   ClipboardList,
   AlertTriangle,
   Route,
-  TrendingUp,
   Plus,
   ArrowRight,
   ShieldCheck,
-  Calendar,
   Loader2,
 } from 'lucide-react'
-import {
-  BarChart,
-  Bar,
-  XAxis,
-  YAxis,
-  CartesianGrid,
-  Tooltip,
-  ResponsiveContainer,
-} from 'recharts'
-import { Card, CardHeader, CardBody, Button, Badge } from '../../components/ui'
+import { Card, CardHeader, CardBody, Button } from '../../components/ui'
 import { trucksApi, tripsApi, occurrencesApi, checklistsApi } from '../../lib/api'
 import {
   TRIP_STATUS_LABELS,
@@ -64,7 +53,6 @@ export function DashboardPage() {
   const availableCount = trucks.filter((t) => t.status === 'available').length
   const inRouteCount = trucks.filter((t) => t.status === 'in_route').length
   const maintenanceCount = trucks.filter((t) => t.status === 'maintenance').length
-  const blockedCount = trucks.filter((t) => t.status === 'blocked').length
 
   const openOccurrences = occurrences.filter((o) => o.status === 'open')
   const completedChecklists = checklists.filter((c) => c.status === 'released' || c.status === 'completed')

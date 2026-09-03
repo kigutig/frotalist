@@ -1,4 +1,3 @@
-import { History } from 'lucide-react'
 import { ChecklistsPage } from '../checklists/ChecklistsPage'
 
 // History page reuses the checklists page with full history view

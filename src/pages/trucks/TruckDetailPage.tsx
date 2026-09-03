@@ -3,13 +3,9 @@ import { useParams, useNavigate } from 'react-router-dom'
 import {
   ArrowLeft,
   Truck,
-  Edit2,
   ClipboardList,
   Wrench,
   MapPin,
-  Calendar,
-  Gauge,
-  Package,
   Loader2,
 } from 'lucide-react'
 import { Card, CardHeader, CardBody, Button } from '../../components/ui'

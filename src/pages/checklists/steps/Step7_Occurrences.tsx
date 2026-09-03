@@ -1,22 +1,15 @@
 import { AlertTriangle, Plus, Trash2 } from 'lucide-react'
-import { Button, Select } from '../../../components/ui'
+import { Button } from '../../../components/ui'
 import type { StepProps } from './shared'
 import type { Occurrence, OccurrenceSeverity } from '../../../types'
 import { DEPARTURE_CHECKLIST_ITEMS, CATEGORY_LABELS } from '../../../lib/checklist-items'
 import { OCCURRENCE_SEVERITY_LABELS, OCCURRENCE_SEVERITY_COLORS, cn } from '../../../lib/utils'
 
-const SEVERITY_OPTIONS = [
-  { value: 'low', label: '🟢 Baixa' },
-  { value: 'medium', label: '🟡 Média' },
-  { value: 'high', label: '🔴 Alta' },
-  { value: 'critical', label: '⚫ Crítica' },
-]
-
 interface Step7Props extends StepProps {
-  notOkItems: number
+  notOkItems?: number
 }
 
-export function Step7_Occurrences({ form, onUpdateField, notOkItems }: Step7Props) {
+export function Step7_Occurrences({ form, onUpdateField }: Step7Props) {
   // Build occurrences from not_ok items
   const autoOccurrences = DEPARTURE_CHECKLIST_ITEMS.filter(
     (item) => form.items[item.key] === 'not_ok'

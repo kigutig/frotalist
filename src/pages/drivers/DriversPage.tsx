@@ -5,7 +5,6 @@ import {
   Plus,
   Search,
   Edit2,
-  Eye,
   Trash2,
   Phone,
   FileText,

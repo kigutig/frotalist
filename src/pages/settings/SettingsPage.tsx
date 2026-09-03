@@ -7,12 +7,9 @@ import {
   Shield,
   CheckCircle2,
   X,
-  Lock,
   Save,
   Loader2,
   History,
-  Check,
-  AlertTriangle,
 } from 'lucide-react'
 import { Card, CardHeader, CardBody, Button, Input } from '../../components/ui'
 import { useAuth } from '../../contexts/AuthContext'
