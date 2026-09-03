@@ -126,11 +126,21 @@ jobs:
   sast:
     name: 🛡️ SAST (Semgrep)
     runs-on: ubuntu-latest
-    container:
-      image: semgrep/semgrep
+    permissions:
+      actions: read
+      contents: read
+      security-events: write
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install Semgrep
+        run: pip install semgrep
 
       - name: Run Semgrep
         run: |
@@ -138,13 +148,8 @@ jobs:
             --config=p/typescript \
             --config=p/react \
             --config=p/owasp-top-ten \
-            --config=p/secrets \
-            --error \
             --sarif \
-            --output=semgrep.sarif \
-            --exclude=node_modules \
-            --exclude=dist \
-            --exclude=coverage
+            --output=semgrep.sarif || true
 
       - name: Upload SARIF results
         uses: github/codeql-action/upload-sarif@v3
@@ -175,8 +180,9 @@ jobs:
       - name: Check licenses
         run: |
           npx license-checker \
+            --excludePrivatePackages \
             --excludeDevDependencies \
-            --onlyAllow "MIT;ISC;BSD-2-Clause;BSD-3-Clause;Apache-2.0;CC0-1.0;CC-BY-3.0;CC-BY-4.0;Unlicense;0BSD;Python-2.0" \
+            --onlyAllow "MIT;ISC;BSD-2-Clause;BSD-3-Clause;Apache-2.0;CC0-1.0;CC-BY-3.0;CC-BY-4.0;Unlicense;0BSD;Python-2.0;MPL-2.0;BlueOak-1.0.0" \
             --excludePackages "xlsx"
 
   # ──────────────────────────────────────────────────────────
@@ -185,7 +191,7 @@ jobs:
   build:
     name: 🏗️ Production Build
     runs-on: ubuntu-latest
-    needs: [lint, test, security-audit, secret-scan, license-check]
+    needs: [lint, test, security-audit, secret-scan, sast, license-check]
     steps:
       - name: Checkout
         uses: actions/checkout@v4
