@@ -1,0 +1,59 @@
+# Gitleaks configuration for Frotalist
+# https://github.com/gitleaks/gitleaks
+
+title = "Frotalist Gitleaks Config"
+
+[extend]
+# Extend the default ruleset
+useDefault = true
+
+[[rules]]
+id = "supabase-anon-key"
+description = "Supabase Anon Key"
+regex = '''eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9\.[A-Za-z0-9+/=]+\.[A-Za-z0-9_-]+'''
+tags = ["supabase", "jwt", "key"]
+severity = "critical"
+
+[[rules]]
+id = "supabase-service-role"
+description = "Supabase Service Role Key (longer JWT)"
+regex = '''eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9\.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6[A-Za-z0-9+/=]+\.[A-Za-z0-9_-]+'''
+tags = ["supabase", "service-role", "critical"]
+severity = "critical"
+
+[[rules]]
+id = "supabase-url"
+description = "Supabase Project URL with credentials"
+regex = '''https://[a-z0-9]{20}\.supabase\.co'''
+tags = ["supabase", "url"]
+severity = "medium"
+
+[[rules]]
+id = "dotenv-secrets"
+description = "Potential .env secret value assignment"
+regex = '''(?i)(password|secret|token|key|credential)\s*=\s*['""]?[^\s'"";]{8,}['""]?'''
+tags = ["env", "secret"]
+severity = "high"
+
+[allowlist]
+description = "Global allowlist"
+regexes = [
+  # Allow example/placeholder values
+  '''your[_-]?(key|token|secret|password)''',
+  '''example[_-]?(key|token|secret)''',
+  '''placeholder''',
+  # Allow test fixtures
+  '''test[_-]?(key|token|secret)''',
+  # Vitest mock patterns
+  '''vi\.fn\(\)''',
+]
+paths = [
+  ".env.example",
+  "src/test/",
+  "*.test.ts",
+  "*.test.tsx",
+  "*.spec.ts",
+  "*.spec.tsx",
+  "node_modules",
+  "dist",
+]

@@ -1,0 +1,18 @@
+# CODEOWNERS — Frotalist
+# These owners will be automatically requested as reviewers on PRs
+
+# Global fallback (all files)
+*                           @kigutig
+
+# Core business logic — mandatory review
+src/lib/                    @kigutig
+src/types/                  @kigutig
+
+# Database migrations — mandatory review (can break production)
+supabase/migrations/        @kigutig
+
+# CI/CD and security configs — mandatory review
+.github/                    @kigutig
+.gitleaks.toml              @kigutig
+audit-ci.json               @kigutig
+vitest.config.ts            @kigutig

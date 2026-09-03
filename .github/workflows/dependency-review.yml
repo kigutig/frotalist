@@ -1,0 +1,59 @@
+name: Dependency Review
+
+on:
+  pull_request:
+    branches: [main, develop]
+  schedule:
+    # Every Monday at 08:00 BRT (11:00 UTC)
+    - cron: '0 11 * * 1'
+
+jobs:
+  dependency-review:
+    name: 📦 Dependency Review
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Dependency Review
+        uses: actions/dependency-review-action@v4
+        with:
+          fail-on-severity: high
+          deny-licenses: GPL-2.0, GPL-3.0, AGPL-3.0, LGPL-2.0, LGPL-2.1
+          comment-summary-in-pr: always
+
+  # Weekly full audit report
+  weekly-audit:
+    name: 📋 Weekly Audit Report
+    runs-on: ubuntu-latest
+    if: github.event_name == 'schedule'
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Full audit report
+        run: npm audit --json > audit-report.json || true
+
+      - name: Upload audit report
+        uses: actions/upload-artifact@v4
+        with:
+          name: weekly-audit-${{ github.run_number }}
+          path: audit-report.json
+          retention-days: 30
+
+      - name: Summary
+        run: |
+          echo "## 📋 Weekly Dependency Audit" >> $GITHUB_STEP_SUMMARY
+          npm audit --audit-level=none 2>&1 | tail -20 >> $GITHUB_STEP_SUMMARY || true
