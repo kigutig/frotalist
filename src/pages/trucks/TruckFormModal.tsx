@@ -29,7 +29,6 @@ const TYPE_OPTIONS = [
 export function TruckFormModal({ truck, onClose, onSave }: TruckFormModalProps) {
   const isEdit = !!truck
   const [form, setForm] = useState({
-    internal_code: truck?.internal_code ?? '',
     plate: truck?.plate ?? '',
     brand: truck?.brand ?? '',
     model: truck?.model ?? '',
@@ -45,7 +44,6 @@ export function TruckFormModal({ truck, onClose, onSave }: TruckFormModalProps) 
 
   function validate() {
     const e: Record<string, string> = {}
-    if (!form.internal_code) e.internal_code = 'Código interno é obrigatório.'
     if (!form.plate) e.plate = 'Placa é obrigatória.'
     if (!form.brand) e.brand = 'Marca é obrigatória.'
     if (!form.model) e.model = 'Modelo é obrigatório.'
@@ -64,6 +62,7 @@ export function TruckFormModal({ truck, onClose, onSave }: TruckFormModalProps) 
     await new Promise((r) => setTimeout(r, 500))
     onSave({
       ...form,
+      internal_code: truck?.internal_code || form.plate.toUpperCase().trim(),
       year: Number(form.year),
       mileage: Number(form.mileage),
       status: form.status as TruckStatus,
@@ -86,7 +85,7 @@ export function TruckFormModal({ truck, onClose, onSave }: TruckFormModalProps) 
                 {isEdit ? 'Editar Caminhão' : 'Novo Caminhão'}
               </h2>
               <p className="text-xs text-slate-500">
-                {isEdit ? `Editando ${truck.internal_code}` : 'Preencha os dados do veículo'}
+                {isEdit ? `Editando ${truck.plate}` : 'Preencha os dados do veículo'}
               </p>
             </div>
           </div>
@@ -97,15 +96,7 @@ export function TruckFormModal({ truck, onClose, onSave }: TruckFormModalProps) 
 
         {/* Form */}
         <form onSubmit={handleSubmit} className="p-6 space-y-5">
-          <div className="grid grid-cols-2 gap-4">
-            <Input
-              label="Código Interno"
-              placeholder="TRK-001"
-              value={form.internal_code}
-              onChange={(e) => setForm({ ...form, internal_code: e.target.value })}
-              error={errors.internal_code}
-              required
-            />
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <Input
               label="Placa"
               placeholder="ABC-1234"
@@ -114,9 +105,17 @@ export function TruckFormModal({ truck, onClose, onSave }: TruckFormModalProps) 
               error={errors.plate}
               required
             />
+            <Select
+              label="Tipo"
+              value={form.type}
+              onChange={(e) => setForm({ ...form, type: e.target.value })}
+              options={TYPE_OPTIONS}
+              placeholder="Selecione..."
+              error={errors.type}
+            />
           </div>
 
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <Input
               label="Marca"
               placeholder="Volkswagen"
@@ -135,7 +134,7 @@ export function TruckFormModal({ truck, onClose, onSave }: TruckFormModalProps) 
             />
           </div>
 
-          <div className="grid grid-cols-3 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <Input
               label="Ano"
               type="number"
@@ -144,14 +143,6 @@ export function TruckFormModal({ truck, onClose, onSave }: TruckFormModalProps) 
               onChange={(e) => setForm({ ...form, year: e.target.value })}
               error={errors.year}
               required
-            />
-            <Select
-              label="Tipo"
-              value={form.type}
-              onChange={(e) => setForm({ ...form, type: e.target.value })}
-              options={TYPE_OPTIONS}
-              placeholder="Selecione..."
-              error={errors.type}
             />
             <Input
               label="Capacidade"

@@ -86,7 +86,7 @@ describe('TripReturnPage', () => {
     })
   })
 
-  it('has 5 steps in the progress bar', async () => {
+  it('has 6 steps in the progress bar', async () => {
     renderPage()
     await waitFor(() => screen.getByText('Resumo da Viagem'))
 
@@ -94,6 +94,7 @@ describe('TripReturnPage', () => {
     expect(screen.getByText('Resumo')).toBeInTheDocument()
     expect(screen.getByText('Quilometragem')).toBeInTheDocument()
     expect(screen.getByText('Ocorrências')).toBeInTheDocument()
+    expect(screen.getByText('Fotos')).toBeInTheDocument()
     expect(screen.getByText('Entregas')).toBeInTheDocument()
     expect(screen.getByText('Confirmar')).toBeInTheDocument()
   })

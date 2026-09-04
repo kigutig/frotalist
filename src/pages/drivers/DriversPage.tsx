@@ -8,6 +8,7 @@ import {
   Trash2,
   Phone,
   FileText,
+  Eye,
   Loader2,
 } from 'lucide-react'
 import {
@@ -23,6 +24,7 @@ import {
   Th,
   Td,
   Alert,
+  ActionMenu,
 } from '../../components/ui'
 import { DriverFormModal } from './DriverFormModal'
 import { driversApi } from '../../lib/api'
@@ -74,12 +76,44 @@ export function DriversPage() {
     await loadDrivers()
   }
 
-  const handleDeleteDriver = async (id: string, e: React.MouseEvent) => {
-    e.stopPropagation()
-    if (window.confirm('Tem certeza que deseja excluir este motorista?')) {
-      await driversApi.delete(id)
-      await loadDrivers()
+  const handleDeleteDriver = async (driver: Driver) => {
+    if (!window.confirm(`Tem certeza que deseja excluir o motorista ${driver.name}?`)) {
+      return
     }
+
+    const res = await driversApi.delete(driver.id)
+    if (res.conflict) {
+      const wantCascade = window.confirm(
+        `O motorista ${driver.name} possui viagens ou checklists vinculados e não pode ser excluído diretamente.\n\n` +
+        `• Clique em "OK" para EXCLUIR PERMANENTEMENTE o motorista e todos os registros vinculados a ele.\n` +
+        `• Clique em "Cancelar" para apenas desativar o motorista (marcar como Inativo), preservando o histórico.`
+      )
+
+      if (wantCascade) {
+        const doubleCheck = window.confirm(
+          `⚠️ ATENÇÃO: Esta ação é irreversível e apagará viagens e checklists associados ao motorista ${driver.name}.\n\nDeseja realmente continuar?`
+        )
+        if (doubleCheck) {
+          const cascadeRes = await driversApi.delete(driver.id, true)
+          if (cascadeRes.error) {
+            alert(`Erro ao excluir: ${cascadeRes.error}`)
+          } else {
+            await loadDrivers()
+          }
+        }
+      } else {
+        await driversApi.update(driver.id, { status: 'inactive' })
+        await loadDrivers()
+      }
+      return
+    }
+
+    if (res.error) {
+      alert(`Não foi possível excluir o motorista: ${res.error}`)
+      return
+    }
+
+    await loadDrivers()
   }
 
   // Alerts for expiring CNH
@@ -262,22 +296,26 @@ export function DriversPage() {
                       </span>
                     </Td>
                     <Td className="text-right">
-                      <div className="flex items-center justify-end gap-1" onClick={(e) => e.stopPropagation()}>
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          onClick={() => { setEditingDriver(driver); setShowForm(true) }}
-                        >
-                          <Edit2 className="h-4 w-4" />
-                        </Button>
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          onClick={(e) => handleDeleteDriver(driver.id, e)}
-                        >
-                          <Trash2 className="h-4 w-4 text-red-500" />
-                        </Button>
-                      </div>
+                      <ActionMenu
+                        items={[
+                          {
+                            label: 'Ver detalhes',
+                            icon: Eye,
+                            onClick: () => navigate(`/drivers/${driver.id}`),
+                          },
+                          {
+                            label: 'Editar',
+                            icon: Edit2,
+                            onClick: () => { setEditingDriver(driver); setShowForm(true) },
+                          },
+                          {
+                            label: 'Excluir',
+                            icon: Trash2,
+                            danger: true,
+                            onClick: () => void handleDeleteDriver(driver),
+                          },
+                        ]}
+                      />
                     </Td>
                   </tr>
                 )

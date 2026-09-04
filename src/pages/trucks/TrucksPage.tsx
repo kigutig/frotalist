@@ -22,6 +22,7 @@ import {
   TableBody,
   Th,
   Td,
+  ActionMenu,
 } from '../../components/ui'
 import { TruckFormModal } from './TruckFormModal'
 import { trucksApi } from '../../lib/api'
@@ -72,12 +73,44 @@ export function TrucksPage() {
     await loadTrucks()
   }
 
-  const handleDeleteTruck = async (id: string, e: React.MouseEvent) => {
-    e.stopPropagation()
-    if (window.confirm('Tem certeza que deseja excluir este caminhão?')) {
-      await trucksApi.delete(id)
-      await loadTrucks()
+  const handleDeleteTruck = async (truck: TruckType) => {
+    if (!window.confirm(`Tem certeza que deseja excluir o caminhão de placa ${truck.plate}?`)) {
+      return
     }
+
+    const res = await trucksApi.delete(truck.id)
+    if (res.conflict) {
+      const wantCascade = window.confirm(
+        `O caminhão ${truck.plate} possui viagens, checklists ou ocorrências vinculadas e não pode ser excluído diretamente.\n\n` +
+        `• Clique em "OK" para EXCLUIR PERMANENTEMENTE o caminhão e todos os registros vinculados a ele.\n` +
+        `• Clique em "Cancelar" para apenas desativar o caminhão (marcar como Inativo), preservando o histórico.`
+      )
+
+      if (wantCascade) {
+        const doubleCheck = window.confirm(
+          `⚠️ ATENÇÃO: Esta ação é irreversível e apagará todas as viagens, checklists e ocorrências do caminhão ${truck.plate}.\n\nDeseja realmente continuar?`
+        )
+        if (doubleCheck) {
+          const cascadeRes = await trucksApi.delete(truck.id, true)
+          if (cascadeRes.error) {
+            alert(`Erro ao excluir: ${cascadeRes.error}`)
+          } else {
+            await loadTrucks()
+          }
+        }
+      } else {
+        await trucksApi.update(truck.id, { status: 'inactive' })
+        await loadTrucks()
+      }
+      return
+    }
+
+    if (res.error) {
+      alert(`Não foi possível excluir o caminhão: ${res.error}`)
+      return
+    }
+
+    await loadTrucks()
   }
 
   const trucks = trucksList.filter((t) => {
@@ -181,7 +214,7 @@ export function TrucksPage() {
           <Table>
             <TableHead>
               <tr>
-                <Th>Código / Placa</Th>
+                <Th>Placa</Th>
                 <Th>Veículo</Th>
                 <Th>Ano</Th>
                 <Th>Quilometragem</Th>
@@ -205,8 +238,10 @@ export function TrucksPage() {
                           <Truck className="h-4 w-4 text-blue-600" />
                         </div>
                         <div>
-                          <p className="font-semibold text-slate-800">{truck.internal_code}</p>
-                          <p className="text-xs text-slate-500">{truck.plate}</p>
+                          <p className="font-semibold text-slate-800">{truck.plate}</p>
+                          {truck.internal_code && truck.internal_code !== truck.plate && (
+                            <p className="text-xs text-slate-400">{truck.internal_code}</p>
+                          )}
                         </div>
                       </div>
                     </Td>
@@ -230,37 +265,31 @@ export function TrucksPage() {
                       </span>
                     </Td>
                     <Td className="text-right">
-                      <div className="flex items-center justify-end gap-1" onClick={(e) => e.stopPropagation()}>
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          leftIcon={ClipboardList}
-                          onClick={() => navigate(`/checklists/new?truck=${truck.id}`)}
-                        >
-                          Checklist
-                        </Button>
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          onClick={() => navigate(`/trucks/${truck.id}`)}
-                        >
-                          <Eye className="h-4 w-4" />
-                        </Button>
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          onClick={() => { setEditingTruck(truck); setShowForm(true) }}
-                        >
-                          <Edit2 className="h-4 w-4" />
-                        </Button>
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          onClick={(e) => handleDeleteTruck(truck.id, e)}
-                        >
-                          <Trash2 className="h-4 w-4 text-red-500" />
-                        </Button>
-                      </div>
+                      <ActionMenu
+                        items={[
+                          {
+                            label: 'Ver detalhes',
+                            icon: Eye,
+                            onClick: () => navigate(`/trucks/${truck.id}`),
+                          },
+                          {
+                            label: 'Novo Checklist',
+                            icon: ClipboardList,
+                            onClick: () => navigate(`/checklists/new?truck=${truck.id}`),
+                          },
+                          {
+                            label: 'Editar',
+                            icon: Edit2,
+                            onClick: () => { setEditingTruck(truck); setShowForm(true) },
+                          },
+                          {
+                            label: 'Excluir',
+                            icon: Trash2,
+                            danger: true,
+                            onClick: () => void handleDeleteTruck(truck),
+                          },
+                        ]}
+                      />
                     </Td>
                   </tr>
                 )

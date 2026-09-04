@@ -1,9 +1,9 @@
 import { useState, useEffect, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Route, Search, Eye, ArrowRight, Loader2 } from 'lucide-react'
+import { Route, Search, Eye, ArrowRight, ArrowLeftRight, Loader2, Truck, User } from 'lucide-react'
 import {
-  Card, CardBody, Button, Input, Select, EmptyState,
-  Table, TableHead, TableBody, Th, Td,
+  Card, CardBody, Input, Select, EmptyState,
+  Table, TableHead, TableBody, Th, Td, ActionMenu,
 } from '../../components/ui'
 import { tripsApi } from '../../lib/api'
 import { TRIP_STATUS_LABELS, TRIP_STATUS_COLORS, formatDateTime, formatMileage, cn } from '../../lib/utils'
@@ -126,16 +126,33 @@ export function TripsPage() {
                       </span>
                     </Td>
                     <Td className="text-right">
-                      <div className="flex items-center justify-end gap-1" onClick={(e) => e.stopPropagation()}>
-                        {trip.status === 'in_route' && (
-                          <Button variant="primary" size="sm" onClick={() => navigate(`/trips/${trip.id}/return`)}>
-                            Registrar Retorno
-                          </Button>
-                        )}
-                        <Button variant="ghost" size="icon" onClick={() => navigate(`/trips/${trip.id}`)}>
-                          <Eye className="h-4 w-4" />
-                        </Button>
-                      </div>
+                      <ActionMenu
+                        items={[
+                          {
+                            label: 'Ver detalhes',
+                            icon: Eye,
+                            onClick: () => navigate(`/trips/${trip.id}`),
+                          },
+                          {
+                            label: 'Registrar Retorno',
+                            icon: ArrowLeftRight,
+                            hidden: trip.status !== 'in_route',
+                            onClick: () => navigate(`/trips/${trip.id}/return`),
+                          },
+                          {
+                            label: 'Ver Caminhão',
+                            icon: Truck,
+                            hidden: !trip.truck_id,
+                            onClick: () => navigate(`/trucks/${trip.truck_id}`),
+                          },
+                          {
+                            label: 'Ver Motorista',
+                            icon: User,
+                            hidden: !trip.driver_id,
+                            onClick: () => navigate(`/drivers/${trip.driver_id}`),
+                          },
+                        ]}
+                      />
                     </Td>
                   </tr>
                 )

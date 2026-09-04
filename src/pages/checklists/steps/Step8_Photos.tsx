@@ -16,7 +16,14 @@ const PHOTO_TYPES = [
   { value: 'other', label: '📸 Outro' },
 ]
 
-export function Step8_Photos({ form, onUpdateField }: StepProps) {
+interface Step8PhotosProps {
+  form: { photos?: Partial<ChecklistPhoto>[] }
+  onUpdateField: (key: any, value: any) => void
+  title?: string
+  subtitle?: string
+}
+
+export function Step8_Photos({ form, onUpdateField, title, subtitle }: Step8PhotosProps) {
   const photos = (form.photos ?? []) as Partial<ChecklistPhoto>[]
   const fileInputRef = useRef<HTMLInputElement>(null)
   const [selectedType, setSelectedType] = useState<string>('front')
@@ -58,9 +65,9 @@ export function Step8_Photos({ form, onUpdateField }: StepProps) {
             <Camera className="h-5 w-5 text-indigo-600" />
           </div>
           <div>
-            <h3 className="font-bold text-slate-800">Etapa 8 — Fotos</h3>
+            <h3 className="font-bold text-slate-800">{title || 'Fotos do Veículo'}</h3>
             <p className="text-xs text-slate-500">
-              Fotografe o veículo e registre qualquer problema visual
+              {subtitle || 'Fotografe o veículo e registre qualquer problema visual'}
             </p>
           </div>
         </div>

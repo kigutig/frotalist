@@ -12,16 +12,18 @@ import {
   CheckCircle2,
   Plus,
   Trash2,
+  Camera,
 } from 'lucide-react'
 import { Button, Input } from '../../components/ui'
 import { tripsApi, checklistsApi, trucksApi } from '../../lib/api'
+import { Step8_Photos } from '../checklists/steps/Step8_Photos'
 import {
   TRIP_STATUS_LABELS,
   formatMileage,
   formatDateTime,
   cn,
 } from '../../lib/utils'
-import type { Trip } from '../../types'
+import type { Trip, ChecklistPhoto } from '../../types'
 
 // ---- Types ----
 interface ReturnOccurrence {
@@ -33,8 +35,9 @@ const STEPS = [
   { id: 1, label: 'Resumo', short: 'RES' },
   { id: 2, label: 'Quilometragem', short: 'KM' },
   { id: 3, label: 'Ocorrências', short: 'OCC' },
-  { id: 4, label: 'Entregas', short: 'ENT' },
-  { id: 5, label: 'Confirmar', short: 'CON' },
+  { id: 4, label: 'Fotos', short: 'FOT' },
+  { id: 5, label: 'Entregas', short: 'ENT' },
+  { id: 6, label: 'Confirmar', short: 'CON' },
 ]
 
 const SEVERITY_OPTIONS = [
@@ -59,6 +62,7 @@ export function TripReturnPage() {
   const [occurrences, setOccurrences] = useState<ReturnOccurrence[]>([])
   const [newOccDesc, setNewOccDesc] = useState('')
   const [newOccSev, setNewOccSev] = useState<ReturnOccurrence['severity']>('low')
+  const [photos, setPhotos] = useState<Partial<ChecklistPhoto>[]>([])
   const [deliveriesCompleted, setDeliveriesCompleted] = useState('')
   const [deliveriesPending, setDeliveriesPending] = useState('')
   const [pendingReason, setPendingReason] = useState('')
@@ -116,6 +120,19 @@ export function TripReturnPage() {
         mileage: returnKm,
         notes: notes || undefined,
       })
+
+      // 1.1 Salvar fotos registradas no retorno
+      if (returnChecklist && photos.length > 0) {
+        await checklistsApi.savePhotos(
+          photos.map((p) => ({
+            checklist_id: returnChecklist.id,
+            storage_path: p.storage_path || p.url || '',
+            url: p.url || p.storage_path,
+            description: p.description || '',
+            photo_type: p.photo_type || 'other',
+          }))
+        )
+      }
 
       // 2. Atualizar a viagem
       await tripsApi.update(id, {
@@ -237,7 +254,7 @@ export function TripReturnPage() {
         <div>
           <h1 className="text-xl font-bold text-slate-800">Registrar Retorno</h1>
           <p className="text-xs text-slate-500">
-            {trip.truck?.internal_code} · {trip.driver?.name}
+            {trip.truck?.plate} · {trip.driver?.name}
           </p>
         </div>
       </div>
@@ -298,7 +315,7 @@ export function TripReturnPage() {
             <div className="p-5 space-y-4">
               <div className="grid grid-cols-2 gap-4">
                 {[
-                  { label: 'Caminhão', value: `${trip.truck?.internal_code} — ${trip.truck?.plate}` },
+                  { label: 'Caminhão', value: trip.truck?.plate ? (trip.truck.internal_code && trip.truck.internal_code !== trip.truck.plate ? `${trip.truck.internal_code} — ${trip.truck.plate}` : trip.truck.plate) : '—' },
                   { label: 'Motorista', value: trip.driver?.name ?? '—' },
                   { label: 'Origem', value: trip.origin ?? '—' },
                   { label: 'Destino', value: trip.destination },
@@ -450,8 +467,18 @@ export function TripReturnPage() {
           </div>
         )}
 
-        {/* Step 4 — Entregas */}
+        {/* Step 4 — Fotos */}
         {currentStep === 4 && (
+          <Step8_Photos
+            form={{ photos }}
+            onUpdateField={(_field, val) => setPhotos(val as Partial<ChecklistPhoto>[])}
+            title="Fotos do Retorno"
+            subtitle="Fotografe o veículo no retorno para registrar o estado e eventuais avarias"
+          />
+        )}
+
+        {/* Step 5 — Entregas */}
+        {currentStep === 5 && (
           <div>
             <div className="border-b border-slate-100 px-5 py-4">
               <div className="flex items-center gap-3">
@@ -513,8 +540,8 @@ export function TripReturnPage() {
           </div>
         )}
 
-        {/* Step 5 — Confirmar */}
-        {currentStep === 5 && (
+        {/* Step 6 — Confirmar */}
+        {currentStep === 6 && (
           <div>
             <div className="border-b border-slate-100 px-5 py-4">
               <div className="flex items-center gap-3">
@@ -531,7 +558,7 @@ export function TripReturnPage() {
               <div className="rounded-xl border border-slate-200 bg-slate-50 p-4 space-y-3">
                 <p className="text-sm font-bold text-slate-700">Resumo do Retorno</p>
                 {[
-                  { label: 'Caminhão', value: `${trip.truck?.internal_code} — ${trip.truck?.plate}` },
+                  { label: 'Caminhão', value: `${trip.truck?.plate}${trip.truck?.internal_code && trip.truck?.internal_code !== trip.truck?.plate ? ` (${trip.truck?.internal_code})` : ''}` },
                   { label: 'Motorista', value: trip.driver?.name ?? '—' },
                   { label: 'Rota', value: `${trip.origin ?? '—'} → ${trip.destination}` },
                   { label: 'KM Saída', value: formatMileage(trip.departure_mileage) },
@@ -540,6 +567,7 @@ export function TripReturnPage() {
                   ...(deliveriesCompleted ? [{ label: 'Entregas realizadas', value: deliveriesCompleted }] : []),
                   ...(deliveriesPending ? [{ label: 'Entregas pendentes', value: deliveriesPending }] : []),
                   ...(occurrences.length > 0 ? [{ label: 'Ocorrências', value: `${occurrences.length} registrada(s)` }] : []),
+                  ...(photos.length > 0 ? [{ label: 'Fotos registradas', value: `${photos.length} foto(s)` }] : []),
                 ].map((item) => (
                   <div key={item.label} className="flex items-center justify-between">
                     <span className="text-sm text-slate-500">{item.label}</span>
@@ -547,6 +575,31 @@ export function TripReturnPage() {
                   </div>
                 ))}
               </div>
+
+              {photos.length > 0 && (
+                <div className="rounded-xl border border-slate-200 p-4 space-y-2">
+                  <p className="text-xs font-semibold uppercase tracking-wider text-slate-500 flex items-center gap-1.5">
+                    <Camera className="h-3.5 w-3.5" />
+                    Fotos Anexadas ({photos.length})
+                  </p>
+                  <div className="grid grid-cols-3 sm:grid-cols-4 gap-2">
+                    {photos.map((photo, idx) => (
+                      <div key={idx} className="relative aspect-square rounded-lg overflow-hidden border border-slate-200 bg-slate-100">
+                        <img
+                          src={photo.url || photo.storage_path}
+                          alt={photo.description || 'Foto do retorno'}
+                          className="h-full w-full object-cover"
+                        />
+                        {photo.description && (
+                          <div className="absolute inset-x-0 bottom-0 bg-black/60 px-1.5 py-0.5 text-[10px] text-white truncate">
+                            {photo.description}
+                          </div>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
 
               <div className="rounded-xl border-2 border-green-400 bg-green-50 p-4 text-center">
                 <p className="text-sm font-bold text-green-700">

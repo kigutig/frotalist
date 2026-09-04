@@ -1,4 +1,5 @@
-import React from 'react'
+import React, { useState, useEffect, useRef } from 'react'
+import ReactDOM from 'react-dom'
 import { cn } from '../../lib/utils'
 
 // ============================================================
@@ -540,6 +541,149 @@ export function ProgressBar({
           style={{ width: `${pct}%` }}
         />
       </div>
+    </div>
+  )
+}
+
+// ============================================================
+// ACTION MENU — Dropdown de ações por item
+// ============================================================
+
+export interface ActionMenuItem {
+  label: string
+  icon?: React.ComponentType<{ className?: string }>
+  onClick: () => void
+  danger?: boolean
+  hidden?: boolean
+  disabled?: boolean
+}
+
+interface ActionMenuProps {
+  items: ActionMenuItem[]
+}
+
+export function ActionMenu({ items }: ActionMenuProps) {
+  const [open, setOpen] = useState(false)
+  const [pos, setPos] = useState<{ top: number; left: number }>({ top: 0, left: 0 })
+  const btnRef = useRef<HTMLButtonElement>(null)
+  const menuRef = useRef<HTMLDivElement>(null)
+
+  const visibleItems = items.filter((i) => !i.hidden)
+
+  const handleOpen = (e: React.MouseEvent) => {
+    e.preventDefault()
+    e.stopPropagation()
+    if (!btnRef.current || visibleItems.length === 0) return
+    if (open) {
+      setOpen(false)
+      return
+    }
+
+    const rect = btnRef.current.getBoundingClientRect()
+    const menuWidth = 180
+    const menuHeight = Math.max(48, visibleItems.length * 40 + 16)
+    const spaceBelow = window.innerHeight - rect.bottom
+    const spaceAbove = rect.top
+
+    let top: number
+    if (spaceBelow < menuHeight && spaceAbove >= menuHeight) {
+      top = rect.top - menuHeight - 4
+    } else {
+      top = rect.bottom + 4
+    }
+    top = Math.max(8, Math.min(window.innerHeight - menuHeight - 8, top))
+
+    let left = rect.right - menuWidth
+    if (left + menuWidth > window.innerWidth - 8) {
+      left = window.innerWidth - menuWidth - 8
+    }
+    if (left < 8) {
+      left = 8
+    }
+
+    setPos({ top, left })
+    setOpen(true)
+  }
+
+  useEffect(() => {
+    if (!open) return
+
+    const handleOutside = (e: MouseEvent) => {
+      const target = e.target as Node
+      if (menuRef.current && menuRef.current.contains(target)) return
+      if (btnRef.current && btnRef.current.contains(target)) return
+      setOpen(false)
+    }
+
+    const handleResize = () => setOpen(false)
+
+    document.addEventListener('mousedown', handleOutside)
+    window.addEventListener('resize', handleResize)
+    return () => {
+      document.removeEventListener('mousedown', handleOutside)
+      window.removeEventListener('resize', handleResize)
+    }
+  }, [open])
+
+  if (visibleItems.length === 0) {
+    return null
+  }
+
+  const menu = open
+    ? ReactDOM.createPortal(
+        <div
+          ref={menuRef}
+          style={{ position: 'fixed', top: pos.top, left: pos.left, zIndex: 9999 }}
+          className="min-w-[180px] rounded-xl border border-slate-200 bg-white py-1 shadow-2xl animate-fade-in"
+          onClick={(e) => e.stopPropagation()}
+          onMouseDown={(e) => e.stopPropagation()}
+        >
+          {visibleItems.map((item, idx) => {
+            const Icon = item.icon
+            return (
+              <button
+                key={idx}
+                type="button"
+                disabled={item.disabled}
+                onClick={(e) => {
+                  e.preventDefault()
+                  e.stopPropagation()
+                  setOpen(false)
+                  item.onClick()
+                }}
+                className={cn(
+                  'flex w-full items-center gap-2.5 px-3.5 py-2.5 text-left text-sm font-medium transition-colors',
+                  item.danger
+                    ? 'text-red-600 hover:bg-red-50 disabled:opacity-50'
+                    : 'text-slate-700 hover:bg-slate-50 disabled:opacity-50'
+                )}
+              >
+                {Icon && <Icon className="h-4 w-4 shrink-0" />}
+                <span>{item.label}</span>
+              </button>
+            )
+          })}
+        </div>,
+        document.body
+      )
+    : null
+
+  return (
+    <div onClick={(e) => e.stopPropagation()} onMouseDown={(e) => e.stopPropagation()} className="inline-block">
+      <button
+        ref={btnRef}
+        type="button"
+        onClick={handleOpen}
+        className="inline-flex h-8 w-8 items-center justify-center rounded-lg text-slate-400 transition-colors hover:bg-slate-100 hover:text-slate-700 focus:outline-none"
+        aria-label="Ações"
+      >
+        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="currentColor" className="h-4 w-4">
+          <circle cx="12" cy="5" r="1.5" />
+          <circle cx="12" cy="12" r="1.5" />
+          <circle cx="12" cy="19" r="1.5" />
+        </svg>
+      </button>
+      {menu}
     </div>
   )
 }

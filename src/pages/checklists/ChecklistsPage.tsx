@@ -1,9 +1,9 @@
 import { useState, useEffect, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { ClipboardList, Plus, Search, Eye, ArrowUpRight, ArrowDownLeft, Loader2 } from 'lucide-react'
+import { ClipboardList, Plus, Search, Eye, ArrowUpRight, ArrowDownLeft, Loader2, Truck, User } from 'lucide-react'
 import {
   Card, CardBody, Button, Input, Select, EmptyState,
-  Table, TableHead, TableBody, Th, Td,
+  Table, TableHead, TableBody, Th, Td, ActionMenu,
 } from '../../components/ui'
 import { checklistsApi } from '../../lib/api'
 import { CHECKLIST_STATUS_LABELS, CHECKLIST_STATUS_COLORS, formatDateTime, cn } from '../../lib/utils'
@@ -137,9 +137,32 @@ export function ChecklistsPage() {
                       </span>
                     </Td>
                     <Td className="text-right">
-                      <Button variant="ghost" size="icon" onClick={(e) => { e.stopPropagation(); navigate(`/checklists/${c.id}`) }}>
-                        <Eye className="h-4 w-4" />
-                      </Button>
+                      <ActionMenu
+                        items={[
+                          {
+                            label: 'Ver detalhes',
+                            icon: Eye,
+                            onClick: () => navigate(`/checklists/${c.id}`),
+                          },
+                          {
+                            label: 'Ver Caminhão',
+                            icon: Truck,
+                            hidden: !c.truck_id,
+                            onClick: () => navigate(`/trucks/${c.truck_id}`),
+                          },
+                          {
+                            label: 'Ver Motorista',
+                            icon: User,
+                            hidden: !c.driver_id,
+                            onClick: () => navigate(`/drivers/${c.driver_id}`),
+                          },
+                          {
+                            label: 'Novo Checklist',
+                            icon: Plus,
+                            onClick: () => navigate(c.truck_id ? `/checklists/new?truck=${c.truck_id}` : '/checklists/new'),
+                          },
+                        ]}
+                      />
                     </Td>
                   </tr>
                 )

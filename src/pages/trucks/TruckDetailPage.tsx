@@ -92,7 +92,7 @@ export function TruckDetailPage() {
                 </div>
                 <div>
                   <div className="flex items-center gap-2">
-                    <h2 className="text-xl font-bold text-slate-800">{truck.internal_code}</h2>
+                    <h2 className="text-xl font-bold text-slate-800">{truck.plate}</h2>
                     <span
                       className={cn(
                         'inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-medium',
@@ -104,7 +104,10 @@ export function TruckDetailPage() {
                     </span>
                   </div>
                   <p className="text-sm text-slate-500">
-                    {truck.plate} · {truck.brand} {truck.model} · {truck.year}
+                    {truck.brand} {truck.model} · {truck.year}
+                    {truck.internal_code && truck.internal_code !== truck.plate && (
+                      <span> · Cód: {truck.internal_code}</span>
+                    )}
                   </p>
                 </div>
               </div>

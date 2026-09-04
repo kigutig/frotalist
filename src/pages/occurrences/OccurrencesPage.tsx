@@ -1,8 +1,9 @@
 import { useState, useEffect, useCallback } from 'react'
-import { AlertTriangle, Search, CheckCircle2, Loader2 } from 'lucide-react'
+import { useNavigate } from 'react-router-dom'
+import { AlertTriangle, Search, CheckCircle2, Clock, Loader2, RotateCcw, Truck, ClipboardList } from 'lucide-react'
 import {
-  Card, CardBody, Button, Input, Select, EmptyState,
-  Table, TableHead, TableBody, Th, Td,
+  Card, CardBody, Input, Select, EmptyState,
+  Table, TableHead, TableBody, Th, Td, ActionMenu,
 } from '../../components/ui'
 import { occurrencesApi } from '../../lib/api'
 import {
@@ -28,6 +29,7 @@ const STATUS_OPTIONS = [
 ]
 
 export function OccurrencesPage() {
+  const navigate = useNavigate()
   const [occurrencesList, setOccurrencesList] = useState<Occurrence[]>([])
   const [loading, setLoading] = useState(true)
   const [search, setSearch] = useState('')
@@ -47,6 +49,16 @@ export function OccurrencesPage() {
 
   const handleResolve = async (id: string) => {
     await occurrencesApi.update(id, { status: 'resolved', resolved_at: new Date().toISOString() })
+    await loadOccurrences()
+  }
+
+  const handleInProgress = async (id: string) => {
+    await occurrencesApi.update(id, { status: 'in_progress' })
+    await loadOccurrences()
+  }
+
+  const handleReopen = async (id: string) => {
+    await occurrencesApi.update(id, { status: 'open' })
     await loadOccurrences()
   }
 
@@ -148,18 +160,40 @@ export function OccurrencesPage() {
                     </Td>
                     <Td className="text-sm text-slate-500">{formatDateTime(occ.created_at)}</Td>
                     <Td className="text-right">
-                      <div className="flex items-center justify-end gap-1">
-                        {occ.status === 'open' && (
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            leftIcon={CheckCircle2}
-                            onClick={() => handleResolve(occ.id)}
-                          >
-                            Resolver
-                          </Button>
-                        )}
-                      </div>
+                      <ActionMenu
+                        items={[
+                          {
+                            label: 'Marcar Em Análise',
+                            icon: Clock,
+                            hidden: occ.status !== 'open',
+                            onClick: () => void handleInProgress(occ.id),
+                          },
+                          {
+                            label: 'Resolver',
+                            icon: CheckCircle2,
+                            hidden: occ.status === 'resolved',
+                            onClick: () => void handleResolve(occ.id),
+                          },
+                          {
+                            label: 'Reabrir Ocorrência',
+                            icon: RotateCcw,
+                            hidden: occ.status !== 'resolved',
+                            onClick: () => void handleReopen(occ.id),
+                          },
+                          {
+                            label: 'Ver Checklist',
+                            icon: ClipboardList,
+                            hidden: !occ.checklist_id,
+                            onClick: () => navigate(`/checklists/${occ.checklist_id}`),
+                          },
+                          {
+                            label: 'Ver Caminhão',
+                            icon: Truck,
+                            hidden: !occ.truck_id,
+                            onClick: () => navigate(`/trucks/${occ.truck_id}`),
+                          },
+                        ]}
+                      />
                     </Td>
                   </tr>
                 )

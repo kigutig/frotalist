@@ -100,13 +100,43 @@ export const trucksApi = {
     return { data: data as Truck }
   },
 
-  async delete(id: string): Promise<{ error?: string }> {
+  async delete(id: string, cascade = false): Promise<{ error?: string; conflict?: boolean }> {
+    if (cascade) {
+      try {
+        // Desvincular referências cruzadas entre viagens e checklists
+        await supabase
+          .from('trips')
+          .update({ departure_checklist_id: null, return_checklist_id: null })
+          .eq('truck_id', id)
+
+        await supabase
+          .from('checklists')
+          .update({ trip_id: null })
+          .eq('truck_id', id)
+
+        // Remover registros dependentes
+        await supabase.from('maintenance').delete().eq('truck_id', id)
+        await supabase.from('occurrences').delete().eq('truck_id', id)
+        await supabase.from('checklists').delete().eq('truck_id', id)
+        await supabase.from('trips').delete().eq('truck_id', id)
+      } catch (e) {
+        console.error('Erro ao limpar dependências do caminhão:', e)
+      }
+    }
+
     const { error } = await supabase
       .from('trucks')
       .delete()
       .eq('id', id)
 
-    if (error) return { error: error.message }
+    if (error) {
+      const isConflict =
+        error.code === '23503' ||
+        error.message?.toLowerCase().includes('foreign key') ||
+        error.message?.toLowerCase().includes('violates') ||
+        error.message?.toLowerCase().includes('referenced')
+      return { error: error.message, conflict: isConflict }
+    }
     return {}
   },
 }
@@ -167,13 +197,39 @@ export const driversApi = {
     return { data: data as Driver }
   },
 
-  async delete(id: string): Promise<{ error?: string }> {
+  async delete(id: string, cascade = false): Promise<{ error?: string; conflict?: boolean }> {
+    if (cascade) {
+      try {
+        await supabase
+          .from('trips')
+          .update({ departure_checklist_id: null, return_checklist_id: null })
+          .eq('driver_id', id)
+
+        await supabase
+          .from('checklists')
+          .update({ trip_id: null })
+          .eq('driver_id', id)
+
+        await supabase.from('checklists').delete().eq('driver_id', id)
+        await supabase.from('trips').delete().eq('driver_id', id)
+      } catch (e) {
+        console.error('Erro ao limpar dependências do motorista:', e)
+      }
+    }
+
     const { error } = await supabase
       .from('drivers')
       .delete()
       .eq('id', id)
 
-    if (error) return { error: error.message }
+    if (error) {
+      const isConflict =
+        error.code === '23503' ||
+        error.message?.toLowerCase().includes('foreign key') ||
+        error.message?.toLowerCase().includes('violates') ||
+        error.message?.toLowerCase().includes('referenced')
+      return { error: error.message, conflict: isConflict }
+    }
     return {}
   },
 }
@@ -244,10 +300,17 @@ export const checklistsApi = {
         .select('*')
         .eq('checklist_id', id)
 
+      // 4. Busca fotos se houver
+      const { data: photosData } = await supabase
+        .from('checklist_photos')
+        .select('*')
+        .eq('checklist_id', id)
+
       return {
         ...checklistData,
         items: itemsData || [],
         occurrences: occurrencesData || [],
+        photos: photosData || [],
       } as Checklist
     } catch (err) {
       console.error('Erro ao buscar checklist por ID:', err)
@@ -272,6 +335,25 @@ export const checklistsApi = {
       .insert(items)
 
     if (error) return { error: error.message }
+    return {}
+  },
+
+  async savePhotos(photos: Array<{ checklist_id: string; storage_path?: string; url?: string; description?: string; photo_type?: string }>): Promise<{ error?: string }> {
+    if (!photos || photos.length === 0) return {}
+    const items = photos.map((p) => ({
+      checklist_id: p.checklist_id,
+      storage_path: p.storage_path || p.url || '',
+      description: p.description || '',
+      photo_type: p.photo_type || 'other',
+    }))
+    const { error } = await supabase
+      .from('checklist_photos')
+      .insert(items)
+
+    if (error) {
+      console.error('Erro ao salvar fotos:', error)
+      return { error: error.message }
+    }
     return {}
   },
 }

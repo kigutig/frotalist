@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react'
 import { Truck, CheckCircle2, ShieldAlert, Lock } from 'lucide-react'
 import { Button, Alert } from '../../../components/ui'
 import type { StepProps } from './shared'
-import { trucksApi, driversApi, checklistsApi, tripsApi } from '../../../lib/api'
+import { trucksApi, driversApi, checklistsApi, tripsApi, occurrencesApi } from '../../../lib/api'
 import { formatMileage } from '../../../lib/utils'
 import { DEPARTURE_CHECKLIST_ITEMS } from '../../../lib/checklist-items'
 import { useAuth } from '../../../contexts/AuthContext'
@@ -80,6 +80,32 @@ export function Step11_Release({ form, hasBlockingIssue, onComplete }: Step11Pro
       })
       if (itemsToSave.length > 0) {
         await checklistsApi.saveItems(itemsToSave)
+      }
+
+      // 2.1 Salvar fotos anexadas
+      if (form.photos && form.photos.length > 0) {
+        await checklistsApi.savePhotos(
+          form.photos.map((p) => ({
+            checklist_id: newChecklist.id,
+            storage_path: p.storage_path || p.url || '',
+            url: p.url || p.storage_path || '',
+            description: p.description || '',
+            photo_type: p.photo_type || 'other',
+          }))
+        )
+      }
+
+      // 2.2 Salvar ocorrências se houver
+      if (form.occurrences && form.occurrences.length > 0) {
+        for (const occ of form.occurrences) {
+          await occurrencesApi.create({
+            checklist_id: newChecklist.id,
+            truck_id: form.truck_id,
+            description: occ.description,
+            severity: occ.severity,
+            status: 'open',
+          })
+        }
       }
 
       // 3. Criar a viagem correspondente
