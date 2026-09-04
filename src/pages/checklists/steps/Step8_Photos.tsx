@@ -1,6 +1,7 @@
 import { useState, useRef } from 'react'
 import { Camera, Upload, X } from 'lucide-react'
 import { Button } from '../../../components/ui'
+import { sanitizeImageUrl } from '../../../lib/utils'
 import type { StepProps } from './shared'
 import type { ChecklistPhoto } from '../../../types'
 
@@ -160,7 +161,7 @@ export function Step8_Photos({ form, onUpdateField, title, subtitle }: Step8Phot
               {photos.map((photo, idx) => (
                 <div key={idx} className="group relative rounded-xl overflow-hidden border border-slate-200 bg-slate-100">
                   <img
-                    src={photo.url ?? photo.storage_path}
+                    src={sanitizeImageUrl(photo.url ?? photo.storage_path)}
                     alt={photo.description ?? ''}
                     className="aspect-square w-full object-cover"
                   />

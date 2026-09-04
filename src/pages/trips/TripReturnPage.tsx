@@ -22,6 +22,7 @@ import {
   formatMileage,
   formatDateTime,
   cn,
+  sanitizeImageUrl,
 } from '../../lib/utils'
 import type { Trip, ChecklistPhoto } from '../../types'
 
@@ -586,7 +587,7 @@ export function TripReturnPage() {
                     {photos.map((photo, idx) => (
                       <div key={idx} className="relative aspect-square rounded-lg overflow-hidden border border-slate-200 bg-slate-100">
                         <img
-                          src={photo.url || photo.storage_path}
+                          src={sanitizeImageUrl(photo.url || photo.storage_path)}
                           alt={photo.description || 'Foto do retorno'}
                           className="h-full w-full object-cover"
                         />

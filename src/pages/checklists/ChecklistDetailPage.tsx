@@ -25,6 +25,7 @@ import {
   formatDateTime,
   formatMileage,
   cn,
+  sanitizeImageUrl,
 } from '../../lib/utils'
 import type { Checklist, ChecklistItem, ChecklistPhoto } from '../../types'
 
@@ -341,7 +342,7 @@ export function ChecklistDetailPage() {
           ) : (
             <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4">
               {photos.map((photo, idx) => {
-                const src = photo.url || photo.storage_path
+                const src = sanitizeImageUrl(photo.url || photo.storage_path)
                 const label = PHOTO_TYPE_LABELS[photo.photo_type || ''] || 'Outro'
                 return (
                   <div
@@ -457,7 +458,7 @@ export function ChecklistDetailPage() {
             </div>
             <div className="flex items-center justify-center p-2 bg-black/40">
               <img
-                src={selectedPhoto.url || selectedPhoto.storage_path}
+                src={sanitizeImageUrl(selectedPhoto.url || selectedPhoto.storage_path)}
                 alt={selectedPhoto.description || 'Foto'}
                 className="max-h-[75vh] w-auto max-w-full object-contain rounded-lg"
               />

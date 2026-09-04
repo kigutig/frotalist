@@ -1,5 +1,5 @@
 import React, { useRef, useState, useEffect, useCallback } from 'react'
-import { PenTool, Trash2, Check, RotateCcw } from 'lucide-react'
+import { PenTool, Check, RotateCcw } from 'lucide-react'
 import type { StepProps } from './shared'
 import { driversApi } from '../../../lib/api'
 import type { Driver } from '../../../types'

@@ -23,6 +23,7 @@ import {
   OCCURRENCE_SEVERITY_COLORS,
   CHECKLIST_STATUS_LABELS,
   MAINTENANCE_STATUS_LABELS,
+  sanitizeImageUrl,
 } from '../utils'
 
 // ---- formatDate ----
@@ -319,5 +320,31 @@ describe('Status label maps', () => {
   it('MAINTENANCE_STATUS_LABELS covers all statuses', () => {
     const expected = ['scheduled', 'in_progress', 'completed']
     expected.forEach((s) => expect(MAINTENANCE_STATUS_LABELS).toHaveProperty(s))
+  })
+})
+
+// ---- sanitizeImageUrl ----
+describe('sanitizeImageUrl', () => {
+  it('allows valid https and http URLs', () => {
+    expect(sanitizeImageUrl('https://example.com/photo.jpg')).toBe('https://example.com/photo.jpg')
+    expect(sanitizeImageUrl('http://example.com/photo.jpg')).toBe('http://example.com/photo.jpg')
+  })
+
+  it('allows blob and data:image URLs', () => {
+    expect(sanitizeImageUrl('blob:http://localhost/uuid-123')).toBe('blob:http://localhost/uuid-123')
+    expect(sanitizeImageUrl('data:image/png;base64,iVBORw0KGgo=')).toBe('data:image/png;base64,iVBORw0KGgo=')
+  })
+
+  it('blocks javascript: and other unsafe protocols', () => {
+    expect(sanitizeImageUrl('javascript:alert(1)')).toBe('')
+    expect(sanitizeImageUrl('data:text/html,<script>alert(1)</script>')).toBe('')
+    expect(sanitizeImageUrl('vbscript:msgbox(1)')).toBe('')
+  })
+
+  it('returns empty string for null, undefined or empty input', () => {
+    expect(sanitizeImageUrl(null)).toBe('')
+    expect(sanitizeImageUrl(undefined)).toBe('')
+    expect(sanitizeImageUrl('')).toBe('')
+    expect(sanitizeImageUrl('   ')).toBe('')
   })
 })
