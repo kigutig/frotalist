@@ -34,10 +34,17 @@ description = "Potential .env secret value assignment"
 regex = '''(?i)(password|secret|token|key|credential)\s*=\s*['""]?[^\s'"";]{8,}['""]?'''
 tags = ["env", "secret"]
 severity = "high"
+[rules.allowlist]
+regexes = [
+  '''key=\{[^\}]+\}''',
+]
 
 [allowlist]
 description = "Global allowlist"
 regexes = [
+  # Allow React JSX key prop
+  '''key=\{[^\}]+\}''',
+  '''key="[^"]+"''',
   # Allow example/placeholder values
   '''your[_-]?(key|token|secret|password)''',
   '''example[_-]?(key|token|secret)''',

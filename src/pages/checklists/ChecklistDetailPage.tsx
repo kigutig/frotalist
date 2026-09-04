@@ -345,7 +345,7 @@ export function ChecklistDetailPage() {
                 const label = PHOTO_TYPE_LABELS[photo.photo_type || ''] || 'Outro'
                 return (
                   <div
-                    key={photo.id || idx}
+                    key={idx}
                     onClick={() => setSelectedPhoto(photo)}
                     className="group relative flex flex-col overflow-hidden rounded-xl border border-slate-200 bg-white shadow-xs transition-all hover:border-indigo-400 hover:shadow-md cursor-pointer"
                   >
