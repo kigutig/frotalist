@@ -250,8 +250,13 @@ export function sanitizeImageUrl(url?: string | null): string {
   if (!url) return ''
   const trimmed = url.trim()
   // Whitelist safe schemes: http, https, blob, data:image
-  if (/^(https?:\/\/|blob:|data:image\/)/i.test(trimmed)) {
-    return trimmed
+  if (
+    trimmed.startsWith('https://') ||
+    trimmed.startsWith('http://') ||
+    trimmed.startsWith('blob:') ||
+    trimmed.startsWith('data:image/')
+  ) {
+    return encodeURI(trimmed)
   }
   return ''
 }
