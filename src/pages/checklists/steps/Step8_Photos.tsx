@@ -166,8 +166,11 @@ export function Step8_Photos({ form, onUpdateField, title, subtitle }: Step8Phot
                   />
                   <div className="absolute inset-0 flex flex-col justify-between bg-gradient-to-t from-black/70 via-transparent to-transparent p-3 opacity-0 transition-opacity group-hover:opacity-100">
                     <button
+                      type="button"
                       onClick={() => removePhoto(idx)}
-                      className="self-end rounded-full bg-red-500 p-1"
+                      className="self-end rounded-full bg-red-500 p-1 hover:bg-red-600 transition-colors"
+                      aria-label="Remover foto"
+                      title="Remover foto"
                     >
                       <X className="h-3 w-3 text-white" />
                     </button>

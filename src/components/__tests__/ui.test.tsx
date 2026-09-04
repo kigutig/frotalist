@@ -1,7 +1,7 @@
 import { describe, it, expect, vi } from 'vitest'
 import { render, screen, fireEvent } from '@testing-library/react'
 import React from 'react'
-import { Badge, Button, Input, Select, Alert, EmptyState } from '../../components/ui'
+import { Badge, Button, Input, Select, Alert, EmptyState, ActionMenu } from '../../components/ui'
 import { Users } from 'lucide-react'
 
 // ---- Badge ----
@@ -174,5 +174,36 @@ describe('EmptyState', () => {
       />
     )
     expect(screen.getByText('Adicionar')).toBeInTheDocument()
+  })
+})
+
+// ---- ActionMenu ----
+describe('ActionMenu', () => {
+  it('renders trigger and toggles menu items on click', () => {
+    const handleEdit = vi.fn()
+    const handleDelete = vi.fn()
+
+    render(
+      <ActionMenu
+        items={[
+          { label: 'Editar Item', onClick: handleEdit },
+          { label: 'Excluir Item', onClick: handleDelete, danger: true },
+        ]}
+      />
+    )
+
+    const trigger = screen.getByRole('button', { name: 'Ações' })
+    expect(trigger).toBeInTheDocument()
+    expect(screen.queryByText('Editar Item')).not.toBeInTheDocument()
+
+    // Open menu
+    fireEvent.click(trigger)
+    expect(screen.getByText('Editar Item')).toBeInTheDocument()
+    expect(screen.getByText('Excluir Item')).toBeInTheDocument()
+
+    // Click menu item
+    fireEvent.click(screen.getByText('Editar Item'))
+    expect(handleEdit).toHaveBeenCalledTimes(1)
+    expect(screen.queryByText('Editar Item')).not.toBeInTheDocument()
   })
 })

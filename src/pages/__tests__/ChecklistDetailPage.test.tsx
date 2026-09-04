@@ -145,4 +145,56 @@ describe('ChecklistDetailPage', () => {
     expect(screen.getByRole('heading', { name: /Fotos Registradas/i })).toBeInTheDocument()
     expect(screen.getByText('Nenhuma foto registrada')).toBeInTheDocument()
   })
+
+  it('renders not found state when checklist does not exist', async () => {
+    vi.mocked(checklistsApi.getById).mockResolvedValue(null)
+
+    await act(async () => {
+      render(
+        <MemoryRouter initialEntries={['/checklists/ckl-999']}>
+          <Routes>
+            <Route path="/checklists/:id" element={<ChecklistDetailPage />} />
+          </Routes>
+        </MemoryRouter>
+      )
+    })
+
+    expect(screen.getByText('Checklist não encontrado')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /Voltar aos Checklists/i })).toBeInTheDocument()
+  })
+
+  it('renders items with non-conformities, notes, and release justification', async () => {
+    vi.mocked(checklistsApi.getById).mockResolvedValue({
+      ...mockChecklist,
+      release_justification: 'Autorizado pelo gerente de frota',
+      notes: 'Entregar com urgência',
+      items: [
+        {
+          id: 'item-1',
+          checklist_id: 'ckl-123',
+          category: 'exterior',
+          item_key: 'tires',
+          item_label: 'Calibragem dos Pneus',
+          status: 'not_ok',
+          observation: 'Pneu com baixa pressão',
+          is_required: true,
+        },
+      ],
+    })
+
+    await act(async () => {
+      render(
+        <MemoryRouter initialEntries={['/checklists/ckl-123']}>
+          <Routes>
+            <Route path="/checklists/:id" element={<ChecklistDetailPage />} />
+          </Routes>
+        </MemoryRouter>
+      )
+    })
+
+    expect(screen.getByText('Autorizado pelo gerente de frota')).toBeInTheDocument()
+    expect(screen.getByText('Entregar com urgência')).toBeInTheDocument()
+    expect(screen.getByText(/Itens com Não Conformidade \/ Avarias \(1\)/i)).toBeInTheDocument()
+    expect(screen.getByText(/Obs: Pneu com baixa pressão/i)).toBeInTheDocument()
+  })
 })
