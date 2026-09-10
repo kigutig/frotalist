@@ -65,7 +65,7 @@ export function TruckFormModal({ truck, onClose, onSave }: TruckFormModalProps) 
       internal_code: truck?.internal_code || form.plate.toUpperCase().trim(),
       year: Number(form.year),
       mileage: Number(form.mileage),
-      status: form.status as TruckStatus,
+      status: (truck?.status === 'in_route' ? 'in_route' : form.status) as TruckStatus,
     })
     setIsSubmitting(false)
   }
@@ -162,12 +162,23 @@ export function TruckFormModal({ truck, onClose, onSave }: TruckFormModalProps) 
               error={errors.mileage}
               required
             />
-            <Select
-              label="Status"
-              value={form.status}
-              onChange={(e) => setForm({ ...form, status: e.target.value as TruckStatus })}
-              options={STATUS_OPTIONS}
-            />
+            {truck?.status === 'in_route' ? (
+              <div>
+                <label className="mb-1.5 block text-xs font-semibold uppercase tracking-wider text-slate-500">
+                  Status
+                </label>
+                <div className="rounded-lg border border-blue-200 bg-blue-50 px-3 py-2 text-xs font-medium text-blue-700">
+                  🔵 Em Rota (viagem ativa)
+                </div>
+              </div>
+            ) : (
+              <Select
+                label="Status"
+                value={form.status}
+                onChange={(e) => setForm({ ...form, status: e.target.value as TruckStatus })}
+                options={STATUS_OPTIONS}
+              />
+            )}
           </div>
 
           <Textarea

@@ -62,6 +62,7 @@ export interface Driver {
   status: DriverStatus
   notes?: string
   photo_url?: string
+  password_hash?: string
   created_at: string
   updated_at?: string
   user?: User
@@ -129,6 +130,7 @@ export interface Checklist {
   released_by?: string
   release_justification?: string
   driver_signature?: string
+  driver_password_confirmed?: boolean
   responsible_signature?: string
   responsible_name?: string
   items?: ChecklistItem[]
@@ -397,8 +399,9 @@ export interface ChecklistFormState {
   occurrences: Partial<Occurrence>[]
   // Photos
   photos: Partial<ChecklistPhoto>[]
-  // Signatures
+  // Signatures & Confirmation
   driver_signature?: string
+  driver_password_confirmed?: boolean
   responsible_signature?: string
   responsible_name?: string
   // Cargo specific

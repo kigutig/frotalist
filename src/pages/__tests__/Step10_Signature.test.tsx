@@ -3,10 +3,12 @@ import { render, screen, fireEvent, act } from '@testing-library/react'
 import React from 'react'
 import { Step10_Signature } from '../checklists/steps/Step10_Signature'
 import type { ChecklistFormState } from '../../types'
+import { hashDriverPassword } from '../../lib/driver-auth'
 
 vi.mock('../../lib/api', () => ({
   driversApi: {
     getById: vi.fn().mockResolvedValue({ id: 'driver-1', name: 'Carlos Motorista' }),
+    update: vi.fn().mockResolvedValue({ data: {}, error: null }),
   },
 }))
 
@@ -50,30 +52,16 @@ describe('Step10_Signature', () => {
     })
   })
 
-  it('renders signature sections for driver and responsible', async () => {
+  it('renders signature section for driver only', async () => {
     const onUpdateField = vi.fn()
     await act(async () => {
       render(<Step10_Signature form={initialForm} onUpdateField={onUpdateField} onUpdateItem={vi.fn()} onUpdateObservation={vi.fn()} />)
     })
 
     expect(screen.getByText(/Etapa 5 — Assinatura Digital/i)).toBeInTheDocument()
-    expect(screen.getByText(/Responsável pela Conferência/i)).toBeInTheDocument()
-    expect(screen.getByPlaceholderText(/Nome do responsável pelo checklist/i)).toBeInTheDocument()
-    expect(screen.getAllByText(/Aguardando assinatura/i)).toHaveLength(2)
-  })
-
-  it('allows typing responsible name', async () => {
-    const onUpdateField = vi.fn()
-    await act(async () => {
-      render(<Step10_Signature form={initialForm} onUpdateField={onUpdateField} onUpdateItem={vi.fn()} onUpdateObservation={vi.fn()} />)
-    })
-
-    const input = screen.getByPlaceholderText(/Nome do responsável pelo checklist/i)
-    await act(async () => {
-      fireEvent.change(input, { target: { value: 'Supervisor Roberto' } })
-    })
-
-    expect(onUpdateField).toHaveBeenCalledWith('responsible_name', 'Supervisor Roberto')
+    expect(screen.getByText(/Assinatura na Tela/i)).toBeInTheDocument()
+    expect(screen.queryByText(/Responsável pela Conferência/i)).not.toBeInTheDocument()
+    expect(screen.getAllByText(/Aguardando assinatura/i)).toHaveLength(1)
   })
 
   it('draws on canvas and calls onUpdateField with image data', async () => {
@@ -87,7 +75,7 @@ describe('Step10_Signature', () => {
     })
 
     const canvases = container!.querySelectorAll('canvas')
-    expect(canvases).toHaveLength(2)
+    expect(canvases).toHaveLength(1)
     const driverCanvas = canvases[0]
 
     // Simulate pointer down, move, and up
@@ -119,5 +107,112 @@ describe('Step10_Signature', () => {
     })
 
     expect(onUpdateField).toHaveBeenCalledWith('driver_signature', '')
+  })
+
+  it('allows creating password for first-time driver and confirms identity', async () => {
+    const onUpdateField = vi.fn()
+    await act(async () => {
+      render(
+        <Step10_Signature
+          form={initialForm}
+          onUpdateField={onUpdateField}
+          onUpdateItem={vi.fn()}
+          onUpdateObservation={vi.fn()}
+        />
+      )
+    })
+
+    expect(screen.getByText(/Primeiro checklist de saída de Carlos Motorista/i)).toBeInTheDocument()
+
+    const pwdInput = screen.getByLabelText(/Criar Senha Própria/i)
+    const confirmInput = screen.getByLabelText(/Confirmar Senha/i)
+
+    await act(async () => {
+      fireEvent.change(pwdInput, { target: { value: '123456' } })
+      fireEvent.change(confirmInput, { target: { value: '123456' } })
+    })
+
+    const saveBtn = screen.getByRole('button', { name: /Salvar Senha e Confirmar Saída/i })
+    await act(async () => {
+      fireEvent.click(saveBtn)
+    })
+
+    expect(onUpdateField).toHaveBeenCalledWith('driver_password_confirmed', true)
+    expect(screen.getByText(/Motorista Autenticado com Sucesso/i)).toBeInTheDocument()
+  })
+
+  it('verifies existing driver password successfully', async () => {
+    const onUpdateField = vi.fn()
+    const hash = await hashDriverPassword('senhacarlos')
+
+    // Mock driver with existing password
+    const { driversApi } = await import('../../lib/api')
+    vi.mocked(driversApi.getById).mockResolvedValueOnce({
+      id: 'driver-1',
+      name: 'Carlos Motorista',
+      password_hash: hash,
+    } as any)
+
+    await act(async () => {
+      render(
+        <Step10_Signature
+          form={initialForm}
+          onUpdateField={onUpdateField}
+          onUpdateItem={vi.fn()}
+          onUpdateObservation={vi.fn()}
+        />
+      )
+    })
+
+    expect(screen.getByText(/Confirme a Senha de Carlos Motorista/i)).toBeInTheDocument()
+
+    const pwdInput = screen.getByPlaceholderText(/Digite sua senha de motorista/i)
+    await act(async () => {
+      fireEvent.change(pwdInput, { target: { value: 'senhacarlos' } })
+    })
+
+    const confirmBtn = screen.getByRole('button', { name: /Confirmar Senha/i })
+    await act(async () => {
+      fireEvent.click(confirmBtn)
+    })
+
+    expect(onUpdateField).toHaveBeenCalledWith('driver_password_confirmed', true)
+    expect(screen.getByText(/Motorista Autenticado com Sucesso/i)).toBeInTheDocument()
+  })
+
+  it('shows error when wrong driver password is entered', async () => {
+    const onUpdateField = vi.fn()
+    const hash = await hashDriverPassword('senhacorreta')
+
+    const { driversApi } = await import('../../lib/api')
+    vi.mocked(driversApi.getById).mockResolvedValueOnce({
+      id: 'driver-1',
+      name: 'Carlos Motorista',
+      password_hash: hash,
+    } as any)
+
+    await act(async () => {
+      render(
+        <Step10_Signature
+          form={initialForm}
+          onUpdateField={onUpdateField}
+          onUpdateItem={vi.fn()}
+          onUpdateObservation={vi.fn()}
+        />
+      )
+    })
+
+    const pwdInput = screen.getByPlaceholderText(/Digite sua senha de motorista/i)
+    await act(async () => {
+      fireEvent.change(pwdInput, { target: { value: 'senhaincorreta' } })
+    })
+
+    const confirmBtn = screen.getByRole('button', { name: /Confirmar Senha/i })
+    await act(async () => {
+      fireEvent.click(confirmBtn)
+    })
+
+    expect(screen.getByText(/Senha incorreta! Não é permitido liberar ou assinar a saída/i)).toBeInTheDocument()
+    expect(onUpdateField).toHaveBeenCalledWith('driver_password_confirmed', false)
   })
 })

@@ -26,6 +26,35 @@ vi.mock('../lib/supabase', () => ({
 // Mock window.confirm
 window.confirm = vi.fn(() => true)
 
+// Mock localStorage if missing or incomplete in JSDOM environment
+const createLocalStorageMock = () => {
+  let store: Record<string, string> = {}
+  return {
+    getItem: vi.fn((key: string) => (key in store ? store[key] : null)),
+    setItem: vi.fn((key: string, value: string) => {
+      store[key] = String(value)
+    }),
+    removeItem: vi.fn((key: string) => {
+      delete store[key]
+    }),
+    clear: vi.fn(() => {
+      store = {}
+    }),
+    key: vi.fn((index: number) => Object.keys(store)[index] ?? null),
+    get length() {
+      return Object.keys(store).length
+    },
+  }
+}
+Object.defineProperty(window, 'localStorage', {
+  value: createLocalStorageMock(),
+  writable: true,
+})
+Object.defineProperty(globalThis, 'localStorage', {
+  value: window.localStorage,
+  writable: true,
+})
+
 // Suppress console.error in tests unless explicitly needed
 const originalError = console.error
 beforeAll(() => {

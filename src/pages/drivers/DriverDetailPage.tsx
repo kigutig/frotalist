@@ -13,9 +13,11 @@ import {
   AlertTriangle,
   CheckCircle,
   XCircle,
+  Lock,
 } from 'lucide-react'
 import { Card, CardHeader, CardBody, Button } from '../../components/ui'
 import { driversApi, tripsApi } from '../../lib/api'
+import { hasDriverPassword } from '../../lib/driver-auth'
 import {
   DRIVER_STATUS_LABELS,
   DRIVER_STATUS_COLORS,
@@ -164,6 +166,18 @@ export function DriverDetailPage() {
                   <span className="text-sm font-medium text-slate-800 font-mono">{item.value}</span>
                 </div>
               ))}
+              <div className="flex items-center justify-between">
+                <span className="text-sm text-slate-500">Senha de Saída</span>
+                {hasDriverPassword(driver) ? (
+                  <span className="inline-flex items-center gap-1 rounded bg-emerald-50 px-2 py-0.5 text-xs font-semibold text-emerald-700 border border-emerald-200">
+                    <Lock className="h-3 w-3" /> Configurada
+                  </span>
+                ) : (
+                  <span className="inline-flex items-center gap-1 rounded bg-amber-50 px-2 py-0.5 text-xs font-medium text-amber-700 border border-amber-200">
+                    Aguardando 1º checklist
+                  </span>
+                )}
+              </div>
               {driver.user && (
                 <div className="flex items-center justify-between">
                   <span className="text-sm text-slate-500">Conta vinculada</span>

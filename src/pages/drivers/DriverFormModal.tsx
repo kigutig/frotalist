@@ -1,7 +1,8 @@
 import { useState, useEffect } from 'react'
-import { X, User, Link as LinkIcon } from 'lucide-react'
+import { X, User, Link as LinkIcon, Lock } from 'lucide-react'
 import { Button, Input, Select, Textarea } from '../../components/ui'
 import { usersApi } from '../../lib/api'
+import { hashDriverPassword, hasDriverPassword } from '../../lib/driver-auth'
 import type { Driver, DriverStatus, CNHCategory, User as UserType } from '../../types'
 
 interface DriverFormModalProps {
@@ -33,6 +34,8 @@ export function DriverFormModal({ driver, onClose, onSave }: DriverFormModalProp
   const [users, setUsers] = useState<UserType[]>([])
   const [loadingUsers, setLoadingUsers] = useState(false)
 
+  const hasExistingPassword = hasDriverPassword(driver)
+
   const [form, setForm] = useState({
     user_id: driver?.user_id ?? '',
     name: driver?.name ?? '',
@@ -43,6 +46,7 @@ export function DriverFormModal({ driver, onClose, onSave }: DriverFormModalProp
     cnh_expiration: driver?.cnh_expiration ?? '',
     status: driver?.status ?? 'active',
     notes: driver?.notes ?? '',
+    password: '',
   })
   const [errors, setErrors] = useState<Record<string, string>>({})
   const [isSubmitting, setIsSubmitting] = useState(false)
@@ -74,6 +78,9 @@ export function DriverFormModal({ driver, onClose, onSave }: DriverFormModalProp
     if (!form.phone) e.phone = 'Telefone é obrigatório.'
     if (!form.cnh) e.cnh = 'Número da CNH é obrigatório.'
     if (!form.cnh_expiration) e.cnh_expiration = 'Validade da CNH é obrigatória.'
+    if (form.password && form.password.trim().length < 4) {
+      e.password = 'A senha deve ter no mínimo 4 caracteres ou dígitos.'
+    }
     return e
   }
 
@@ -82,12 +89,32 @@ export function DriverFormModal({ driver, onClose, onSave }: DriverFormModalProp
     const errs = validate()
     if (Object.keys(errs).length > 0) { setErrors(errs); return }
     setIsSubmitting(true)
-    onSave({
-      ...form,
-      user_id: form.user_id || undefined,
-      status: form.status as DriverStatus,
+
+    const payload: Partial<Driver> = {
+      name: form.name,
+      cpf: form.cpf,
+      phone: form.phone,
+      cnh: form.cnh,
       cnh_category: form.cnh_category as CNHCategory,
-    })
+      cnh_expiration: form.cnh_expiration,
+      status: form.status as DriverStatus,
+      notes: form.notes,
+      user_id: form.user_id || undefined,
+    }
+
+    if (form.password.trim()) {
+      const hash = await hashDriverPassword(form.password.trim())
+      payload.password_hash = hash
+      if (driver?.id) {
+        try {
+          localStorage.setItem(`driver_pwd_hash_${driver.id}`, hash)
+        } catch {
+          // ignore
+        }
+      }
+    }
+
+    onSave(payload)
     setIsSubmitting(false)
   }
 
@@ -192,6 +219,21 @@ export function DriverFormModal({ driver, onClose, onSave }: DriverFormModalProp
               onChange={(e) => setForm({ ...form, cnh_expiration: e.target.value })}
               error={errors.cnh_expiration}
               required
+            />
+          </div>
+
+          <div className="rounded-xl border border-amber-200 bg-amber-50/60 p-4 space-y-2">
+            <div className="flex items-center gap-2 text-amber-900 font-semibold text-xs uppercase tracking-wider">
+              <Lock className="h-3.5 w-3.5 text-amber-600" />
+              <span>Senha Própria de Saída (Checklist)</span>
+            </div>
+            <Input
+              type="password"
+              placeholder={isEdit && hasExistingPassword ? '•••••••• (deixe em branco para manter a atual)' : 'Defina a senha de confirmação de saída...'}
+              value={form.password}
+              onChange={(e) => setForm({ ...form, password: e.target.value })}
+              error={errors.password}
+              hint="Pode ser a mesma senha de quando ele cria a conta. Se deixar em branco, o motorista poderá criá-la no primeiro checklist de saída."
             />
           </div>
 

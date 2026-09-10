@@ -60,6 +60,7 @@ export function Step11_Release({ form, hasBlockingIssue, onComplete }: Step11Pro
       notes: form.notes,
       release_justification: releaseJustification || undefined,
       driver_signature: form.driver_signature,
+      driver_password_confirmed: form.driver_password_confirmed ?? true,
       responsible_signature: form.responsible_signature,
       responsible_name: form.responsible_name,
     })
@@ -199,7 +200,14 @@ export function Step11_Release({ form, hasBlockingIssue, onComplete }: Step11Pro
             </div>
             <div>
               <p className="text-xs text-slate-500">Motorista</p>
-              <p className="font-bold text-slate-800">{driver?.name ?? '—'}</p>
+              <div className="flex items-center gap-1.5 flex-wrap">
+                <p className="font-bold text-slate-800">{driver?.name ?? '—'}</p>
+                {form.driver_password_confirmed && (
+                  <span className="inline-flex items-center gap-0.5 rounded bg-emerald-100 px-1.5 py-0.5 text-2xs font-bold text-emerald-800">
+                    <Lock className="h-2.5 w-2.5" /> Senha Confirmada
+                  </span>
+                )}
+              </div>
             </div>
             <div>
               <p className="text-xs text-slate-500">KM</p>

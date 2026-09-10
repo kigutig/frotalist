@@ -9,6 +9,7 @@ import {
   ClipboardList,
   Loader2,
   Trash2,
+  Route,
 } from 'lucide-react'
 import {
   Card,
@@ -75,6 +76,11 @@ export function TrucksPage() {
 
   const handleDeleteTruck = async (truck: TruckType) => {
     if (!window.confirm(`Tem certeza que deseja excluir o caminhão de placa ${truck.plate}?`)) {
+      return
+    }
+
+    if (truck.status === 'in_route') {
+      alert(`O caminhão ${truck.plate} está atualmente em rota e não pode ser excluído enquanto a viagem estiver ativa.`)
       return
     }
 
@@ -275,7 +281,14 @@ export function TrucksPage() {
                           {
                             label: 'Novo Checklist',
                             icon: ClipboardList,
+                            hidden: truck.status === 'in_route',
                             onClick: () => navigate(`/checklists/new?truck=${truck.id}`),
+                          },
+                          {
+                            label: 'Registrar Retorno',
+                            icon: Route,
+                            hidden: truck.status !== 'in_route',
+                            onClick: () => navigate('/trips'),
                           },
                           {
                             label: 'Editar',
@@ -286,6 +299,7 @@ export function TrucksPage() {
                             label: 'Excluir',
                             icon: Trash2,
                             danger: true,
+                            disabled: truck.status === 'in_route',
                             onClick: () => void handleDeleteTruck(truck),
                           },
                         ]}

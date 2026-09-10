@@ -1,4 +1,4 @@
-import { useState, useCallback } from 'react'
+import { useState, useCallback, useEffect } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import {
   ArrowLeft,
@@ -14,7 +14,8 @@ import { Step8_Photos } from './steps/Step8_Photos'
 import { Step9_Review } from './steps/Step9_Review'
 import { Step10_Signature } from './steps/Step10_Signature'
 import { Step11_Release } from './steps/Step11_Release'
-import type { ChecklistFormState, CheckItemStatus } from '../../types'
+import { trucksApi } from '../../lib/api'
+import type { ChecklistFormState, CheckItemStatus, Truck } from '../../types'
 import { cn } from '../../lib/utils'
 
 const STEPS = [
@@ -49,6 +50,19 @@ export function ChecklistWizard() {
     truck_id: searchParams.get('truck') ?? '',
   })
   const [showExitConfirm, setShowExitConfirm] = useState(false)
+  const [currentTruck, setCurrentTruck] = useState<Truck | null>(null)
+
+  useEffect(() => {
+    async function loadCurrentTruck() {
+      if (form.truck_id) {
+        const t = await trucksApi.getById(form.truck_id)
+        setCurrentTruck(t)
+      } else {
+        setCurrentTruck(null)
+      }
+    }
+    void loadCurrentTruck()
+  }, [form.truck_id])
 
   const notOkItems = form.occurrences.length
   const hasBlockingIssue = form.occurrences.some((occ) => occ.severity === 'critical' || occ.severity === 'high')
@@ -77,7 +91,21 @@ export function ChecklistWizard() {
   function canProceedStep(): boolean {
     switch (currentStep) {
       case 1:
-        return !!(form.truck_id && form.driver_id && form.mileage > 0 && form.destination)
+        // Bloqueia se o caminhão selecionado estiver em rota
+        if (currentTruck && currentTruck.status === 'in_route') {
+          return false
+        }
+        // Exige dados do veículo e confirmação da senha própria do motorista logo na etapa 1
+        return !!(
+          form.truck_id &&
+          form.driver_id &&
+          form.mileage > 0 &&
+          form.destination &&
+          form.driver_password_confirmed
+        )
+      case 5:
+        // Etapa 5: Assinatura do motorista (e senha confirmada)
+        return !!(form.driver_signature && form.driver_password_confirmed)
       default:
         return true
     }
@@ -200,14 +228,31 @@ export function ChecklistWizard() {
         </div>
 
         {currentStep < STEPS.length ? (
-          <Button
-            variant="primary"
-            rightIcon={ArrowRight}
-            onClick={handleNext}
-            disabled={!canProceedStep()}
-          >
-            Avançar
-          </Button>
+          <div className="flex items-center gap-3">
+            {currentStep === 1 && currentTruck?.status === 'in_route' && (
+              <span className="hidden sm:inline text-xs font-semibold text-red-600">
+                Veículo em rota: saída bloqueada
+              </span>
+            )}
+            {currentStep === 1 && (!currentTruck || currentTruck.status !== 'in_route') && form.driver_id && !form.driver_password_confirmed && (
+              <span className="hidden sm:inline text-xs font-medium text-amber-600">
+                Confirme a senha do motorista para iniciar o checklist
+              </span>
+            )}
+            {currentStep === 5 && !form.driver_signature && (
+              <span className="hidden sm:inline text-xs font-medium text-amber-600">
+                Desenhe a assinatura para avançar
+              </span>
+            )}
+            <Button
+              variant="primary"
+              rightIcon={ArrowRight}
+              onClick={handleNext}
+              disabled={!canProceedStep()}
+            >
+              Avançar
+            </Button>
+          </div>
         ) : null}
       </div>
 

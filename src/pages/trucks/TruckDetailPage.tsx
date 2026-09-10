@@ -113,13 +113,53 @@ export function TruckDetailPage() {
               </div>
             </div>
             <div className="flex gap-2">
-              <Button variant="outline" leftIcon={ClipboardList} onClick={() => navigate(`/checklists/new?truck=${truck.id}`)}>
-                Novo Checklist
-              </Button>
+              {truck.status === 'in_route' ? (
+                <div className="flex items-center gap-2">
+                  <span className="text-xs font-semibold text-blue-700 bg-blue-50 border border-blue-200 rounded-lg px-3 py-2">
+                    🚛 Veículo em Rota
+                  </span>
+                  <Button
+                    variant="primary"
+                    size="sm"
+                    onClick={() => {
+                      const activeTrip = trips.find((t) => t.status === 'in_route')
+                      if (activeTrip) {
+                        navigate(`/trips/${activeTrip.id}/return`)
+                      } else {
+                        navigate('/trips')
+                      }
+                    }}
+                  >
+                    Registrar Retorno
+                  </Button>
+                </div>
+              ) : (
+                <Button variant="outline" leftIcon={ClipboardList} onClick={() => navigate(`/checklists/new?truck=${truck.id}`)}>
+                  Novo Checklist
+                </Button>
+              )}
             </div>
           </div>
         </div>
       </div>
+
+      {truck.status === 'in_route' && (
+        <div className="rounded-xl border border-blue-200 bg-blue-50 p-4 flex items-center justify-between animate-fade-in">
+          <div className="flex items-center gap-3">
+            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-blue-100 text-blue-700">
+              <Truck className="h-5 w-5" />
+            </div>
+            <div>
+              <p className="text-sm font-bold text-blue-900">
+                Veículo Atualmente em Rota
+              </p>
+              <p className="text-xs text-blue-700">
+                Não é permitido iniciar novos checklists de saída enquanto o caminhão estiver em viagem. Conclua o retorno da viagem para liberar o veículo.
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
 
       <div className="grid gap-6 lg:grid-cols-3">
         {/* Info */}

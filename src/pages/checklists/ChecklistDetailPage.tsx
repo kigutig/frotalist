@@ -404,6 +404,11 @@ export function ChecklistDetailPage() {
             <p className="text-xs font-semibold text-slate-600 mt-2">
               {checklist.driver?.name || 'Motorista'}
             </p>
+            {checklist.driver_password_confirmed && (
+              <span className="mt-1.5 inline-flex items-center gap-1 rounded-full bg-emerald-50 px-2.5 py-0.5 text-2xs font-semibold text-emerald-700 border border-emerald-200">
+                <ShieldCheck className="h-3 w-3" /> Autenticado por senha própria
+              </span>
+            )}
           </CardBody>
         </Card>
 

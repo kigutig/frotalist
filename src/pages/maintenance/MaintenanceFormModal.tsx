@@ -45,10 +45,17 @@ export function MaintenanceFormModal({ onClose, onSave }: MaintenanceFormModalPr
     void fetchTrucks()
   }, [])
 
-  const truckOptions = trucks.map((t) => ({ value: t.id, label: `${t.internal_code} — ${t.plate}` }))
+  const truckOptions = trucks
+    .filter((t) => t.status !== 'in_route')
+    .map((t) => ({ value: t.id, label: `${t.internal_code} — ${t.plate}` }))
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
+    const chosenTruck = trucks.find((t) => t.id === form.truck_id)
+    if (chosenTruck?.status === 'in_route') {
+      alert('Não é possível criar manutenção para um veículo que está atualmente em rota.')
+      return
+    }
     if (!form.truck_id || !form.description) return
     setIsSubmitting(true)
     await maintenanceApi.create({
