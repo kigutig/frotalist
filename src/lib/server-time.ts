@@ -6,15 +6,12 @@
  * em milissegundos para cálculo preciso contínuo no fuso de Brasília (UTC-3).
  */
 
-const STORAGE_KEY = 'frotalist_network_time_offset_ms'
-const DEFAULT_SUPABASE_URL = 'https://kepkxjvrsegoedshjatv.supabase.co'
-const DEFAULT_SUPABASE_ANON_KEY =
-  'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImtlcGt4anZyc2Vnb2Vkc2hqYXR2Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODgzNDkyOTksImV4cCI6MjEwMzkyNTI5OX0.YLIz3DNo7TtdIdzm89KiCGcTg4LvIDk03Uao2NchEWw'
+const TIME_OFFSET_STORAGE = 'frotalist_network_time_offset_ms'
 
 // Offset em milissegundos: (hora_servidor_internet - hora_dispositivo_local)
 let cachedOffsetMs: number = (() => {
   try {
-    const saved = localStorage.getItem(STORAGE_KEY)
+    const saved = localStorage.getItem(TIME_OFFSET_STORAGE)
     if (saved) {
       const parsed = parseInt(saved, 10)
       if (!isNaN(parsed)) return parsed
@@ -46,40 +43,45 @@ export async function fetchInternetDate(): Promise<InternetTimeResult> {
   // 1. Tenta Supabase REST (cabeçalho HTTP Date)
   try {
     const supabaseUrl =
-      (typeof import.meta !== 'undefined' && import.meta.env?.VITE_SUPABASE_URL) || DEFAULT_SUPABASE_URL
+      (typeof import.meta !== 'undefined' && import.meta.env?.VITE_SUPABASE_URL) || ''
     const supabaseAnonKey =
-      (typeof import.meta !== 'undefined' && import.meta.env?.VITE_SUPABASE_ANON_KEY) || DEFAULT_SUPABASE_ANON_KEY
+      (typeof import.meta !== 'undefined' && import.meta.env?.VITE_SUPABASE_ANON_KEY) || ''
 
-    const controller = new AbortController()
-    const timeoutId = setTimeout(() => controller.abort(), 4000)
+    if (supabaseUrl) {
+      const controller = new AbortController()
+      const timeoutId = setTimeout(() => controller.abort(), 4000)
 
-    const res = await fetch(`${supabaseUrl}/rest/v1/`, {
-      method: 'GET',
-      headers: {
-        apikey: supabaseAnonKey,
-      },
-      signal: controller.signal,
-    })
-    clearTimeout(timeoutId)
+      const headers: Record<string, string> = {}
+      if (supabaseAnonKey) {
+        headers['apikey'] = supabaseAnonKey
+      }
 
-    const dateHeader = res.headers.get('date')
-    if (dateHeader) {
-      const serverTime = new Date(dateHeader).getTime()
-      if (!isNaN(serverTime) && serverTime > 0) {
-        const deviceEnd = Date.now()
-        // Compensa metade da latência estimada da requisição
-        const latencyEstimate = Math.round((deviceEnd - deviceStart) / 2)
-        const adjustedServerTime = serverTime + latencyEstimate
-        const offset = adjustedServerTime - deviceEnd
+      const res = await fetch(`${supabaseUrl}/rest/v1/`, {
+        method: 'GET',
+        headers,
+        signal: controller.signal,
+      })
+      clearTimeout(timeoutId)
 
-        setCachedOffset(offset)
-        isSynchronized = true
+      const dateHeader = res.headers.get('date')
+      if (dateHeader) {
+        const serverTime = new Date(dateHeader).getTime()
+        if (!isNaN(serverTime) && serverTime > 0) {
+          const deviceEnd = Date.now()
+          // Compensa metade da latência estimada da requisição
+          const latencyEstimate = Math.round((deviceEnd - deviceStart) / 2)
+          const adjustedServerTime = serverTime + latencyEstimate
+          const offset = adjustedServerTime - deviceEnd
 
-        return {
-          date: new Date(adjustedServerTime),
-          source: 'supabase',
-          offsetMs: offset,
-          isNetworkVerified: true,
+          setCachedOffset(offset)
+          isSynchronized = true
+
+          return {
+            date: new Date(adjustedServerTime),
+            source: 'supabase',
+            offsetMs: offset,
+            isNetworkVerified: true,
+          }
         }
       }
     }
@@ -142,7 +144,7 @@ export async function fetchInternetDate(): Promise<InternetTimeResult> {
 function setCachedOffset(offset: number) {
   cachedOffsetMs = offset
   try {
-    localStorage.setItem(STORAGE_KEY, String(offset))
+    localStorage.setItem(TIME_OFFSET_STORAGE, String(offset))
   } catch {
     // Silencia erros de storage
   }

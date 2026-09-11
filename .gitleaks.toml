@@ -53,6 +53,10 @@ regexes = [
   '''test[_-]?(key|token|secret)''',
   # Vitest mock patterns
   '''vi\.fn\(\)''',
+  # App identifiers
+  '''hasDriverPassword''',
+  '''driverHasPassword''',
+  '''frotalist_network_time_offset_ms''',
 ]
 paths = [
   '''\.env\.example''',

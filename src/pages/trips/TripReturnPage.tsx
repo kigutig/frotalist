@@ -113,7 +113,7 @@ export function TripReturnPage() {
   }, [id])
 
   const currentDriver = driver || trip?.driver || null
-  const driverHasPassword = hasDriverPassword(currentDriver)
+  const driverHasRegisteredAuth = Boolean(hasDriverPassword(currentDriver))
 
   async function handleVerifyPassword() {
     if (!currentDriver) return
@@ -440,7 +440,7 @@ export function TripReturnPage() {
                         Alterar
                       </Button>
                     </div>
-                  ) : driverHasPassword ? (
+                  ) : driverHasRegisteredAuth ? (
                     <div className="rounded-xl border border-blue-200 bg-blue-50/60 p-4 space-y-3 animate-fade-in">
                       <div className="flex items-start gap-2.5">
                         <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-blue-100 text-blue-700 shrink-0 mt-0.5">
