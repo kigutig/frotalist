@@ -5,8 +5,10 @@ import type { StepProps } from './shared'
 import { trucksApi, driversApi, checklistsApi, tripsApi, occurrencesApi } from '../../../lib/api'
 import { formatMileage } from '../../../lib/utils'
 import { DEPARTURE_CHECKLIST_ITEMS } from '../../../lib/checklist-items'
+import { FIXED_DEPARTURE_ORIGIN } from '../../../lib/route-calculator'
 import { useAuth } from '../../../contexts/AuthContext'
 import type { Truck as TruckType, Driver } from '../../../types'
+import { getNetworkDate, formatNetworkDateTime } from '../../../lib/server-time'
 
 interface Step11Props extends StepProps {
   hasBlockingIssue: boolean
@@ -43,18 +45,34 @@ export function Step11_Release({ form, hasBlockingIssue, onComplete }: Step11Pro
 
   async function handleRelease() {
     setIsReleasing(true)
+
+    // Validação preventiva: não permite liberar nova viagem se o motorista já estiver em rota
+    const allTrips = await tripsApi.getAll()
+    const activeDriverTrip = allTrips.find((t) => t.driver_id === form.driver_id && t.status === 'in_route')
+    if (activeDriverTrip) {
+      alert('Não é possível liberar a saída: este motorista já possui uma viagem em rota em andamento. Conclua o retorno da viagem antes de liberar uma nova saída.')
+      setIsReleasing(false)
+      return
+    }
     
+    const networkNow = getNetworkDate()
+    const networkIso = networkNow.toISOString()
+
     // 1. Salvar checklist no Supabase
     const { data: newChecklist, error: cklError } = await checklistsApi.create({
       truck_id: form.truck_id,
       driver_id: form.driver_id,
       type: 'departure',
       status: hasBlockingIssue ? 'approved' : 'released',
-      started_at: new Date().toISOString(),
-      completed_at: new Date().toISOString(),
-      released_at: new Date().toISOString(),
+      started_at: networkIso,
+      completed_at: networkIso,
+      released_at: networkIso,
       mileage: form.mileage,
+      origin: form.origin || FIXED_DEPARTURE_ORIGIN,
       destination: form.destination,
+      estimated_distance_km: form.estimated_distance_km,
+      estimated_duration_minutes: form.estimated_duration_minutes,
+      estimated_arrival: form.estimated_arrival,
       cargo_volumes: form.cargo_volumes,
       cargo_notes: form.cargo_notes,
       notes: form.notes,
@@ -110,14 +128,23 @@ export function Step11_Release({ form, hasBlockingIssue, onComplete }: Step11Pro
       }
 
       // 3. Criar a viagem correspondente
+      const routeNote = form.estimated_distance_km
+        ? `[ROTA] Distância: ${form.estimated_distance_km} km | Duração estimada: ${Math.round(form.estimated_duration_minutes || 0)} min`
+        : ''
+      const combinedNotes = [form.notes, routeNote].filter(Boolean).join(' | ')
+
       await tripsApi.create({
         truck_id: form.truck_id,
         driver_id: form.driver_id,
         departure_checklist_id: newChecklist.id,
-        origin: 'Pátio Central',
+        origin: form.origin || FIXED_DEPARTURE_ORIGIN,
         destination: form.destination,
-        departure_at: new Date().toISOString(),
+        departure_at: networkIso,
         departure_mileage: form.mileage,
+        estimated_return: form.estimated_arrival,
+        estimated_distance_km: form.estimated_distance_km,
+        estimated_duration_minutes: form.estimated_duration_minutes,
+        notes: combinedNotes || undefined,
         status: 'in_route',
       })
 
@@ -153,8 +180,21 @@ export function Step11_Release({ form, hasBlockingIssue, onComplete }: Step11Pro
           <p className="text-sm text-green-800">
             📍 Destino: <strong>{form.destination}</strong>
           </p>
+          {form.estimated_distance_km && (
+            <p className="text-sm text-green-800">
+              🛣️ Distância Prevista: <strong>{form.estimated_distance_km} km</strong>
+            </p>
+          )}
+          {form.estimated_arrival && (
+            <p className="text-sm text-green-800">
+              🏁 Previsão Chegada: <strong>{new Date(form.estimated_arrival).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit', day: '2-digit', month: '2-digit' })}</strong>
+            </p>
+          )}
           <p className="text-sm text-green-800">
-            🕐 Liberado em: <strong>{new Date().toLocaleString('pt-BR')}</strong>
+            🕐 Liberado em: <strong>{formatNetworkDateTime(getNetworkDate())}</strong>
+            <span className="ml-2 inline-flex items-center gap-1 rounded bg-green-200/70 px-1.5 py-0.5 text-[11px] font-semibold text-green-900">
+              🌐 Horário Oficial (Internet)
+            </span>
           </p>
           <p className="text-sm text-green-800">
             👤 Por: <strong>{user?.name || user?.email}</strong>
@@ -217,6 +257,20 @@ export function Step11_Release({ form, hasBlockingIssue, onComplete }: Step11Pro
               <p className="text-xs text-slate-500">Destino</p>
               <p className="font-bold text-slate-800">{form.destination}</p>
             </div>
+            {form.estimated_distance_km ? (
+              <div>
+                <p className="text-xs text-slate-500">Distância Estimada</p>
+                <p className="font-bold text-blue-700">{form.estimated_distance_km} km</p>
+              </div>
+            ) : null}
+            {form.estimated_arrival ? (
+              <div>
+                <p className="text-xs text-slate-500">Previsão de Chegada (ETA)</p>
+                <p className="font-bold text-emerald-700">
+                  {new Date(form.estimated_arrival).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit', day: '2-digit', month: '2-digit' })}
+                </p>
+              </div>
+            ) : null}
             <div>
               <p className="text-xs text-slate-500">Itens Verificados</p>
               <p className="font-bold text-slate-800">{totalItems}</p>

@@ -36,6 +36,9 @@ vi.mock('../../lib/api', () => ({
     getAll: vi.fn().mockResolvedValue(mockDrivers),
     update: vi.fn().mockResolvedValue({ data: {}, error: null }),
   },
+  tripsApi: {
+    getAll: vi.fn().mockResolvedValue([]),
+  },
 }))
 
 describe('Step1_Identification - Driver Password Verification', () => {
@@ -226,5 +229,58 @@ describe('Step1_Identification - Driver Password Verification', () => {
     expect(screen.getByText(/está atualmente/i)).toBeInTheDocument()
     expect(screen.getByText(/EM ROTA/i)).toBeInTheDocument()
     expect(screen.getByText(/Não é permitido criar um novo checklist para um caminhão que já está em viagem/i)).toBeInTheDocument()
+  })
+
+  it('excludes drivers who are currently in route from selection and shows warning if loaded in form', async () => {
+    const onUpdateField = vi.fn()
+    const { driversApi, tripsApi } = await import('../../lib/api')
+
+    vi.mocked(driversApi.getAll).mockResolvedValueOnce([
+      {
+        id: 'driver-free',
+        name: 'Marcos Livre',
+        cnh: '11111111',
+        cnh_category: 'D',
+        status: 'active',
+      },
+      {
+        id: 'driver-in-route',
+        name: 'Roberto Em Viagem',
+        cnh: '22222222',
+        cnh_category: 'E',
+        status: 'active',
+      },
+    ] as any)
+
+    vi.mocked(tripsApi.getAll).mockResolvedValueOnce([
+      {
+        id: 'trip-active',
+        driver_id: 'driver-in-route',
+        truck_id: 'truck-1',
+        status: 'in_route',
+        destination: 'Santos',
+        truck: { internal_code: 'CAM-01', plate: 'ABC-1234' },
+      } as any,
+    ])
+
+    await act(async () => {
+      render(
+        <Step1_Identification
+          form={{ ...initialForm, driver_id: 'driver-in-route' }}
+          onUpdateField={onUpdateField}
+          onUpdateItem={vi.fn()}
+          onUpdateObservation={vi.fn()}
+        />
+      )
+    })
+
+    // Marcos Livre is available in options, Roberto is excluded because he is in route
+    expect(screen.getByRole('option', { name: /Marcos Livre/i })).toBeInTheDocument()
+    expect(screen.queryByRole('option', { name: /Roberto Em Viagem/i })).not.toBeInTheDocument()
+
+    // Alert warning is rendered
+    expect(screen.getAllByText(/Roberto Em Viagem/i).length).toBeGreaterThanOrEqual(1)
+    expect(screen.getByText('EM VIAGEM')).toBeInTheDocument()
+    expect(screen.getByText(/Não é permitido iniciar um novo checklist para um motorista que já está em rota/i)).toBeInTheDocument()
   })
 })

@@ -14,8 +14,8 @@ import { Step8_Photos } from './steps/Step8_Photos'
 import { Step9_Review } from './steps/Step9_Review'
 import { Step10_Signature } from './steps/Step10_Signature'
 import { Step11_Release } from './steps/Step11_Release'
-import { trucksApi } from '../../lib/api'
-import type { ChecklistFormState, CheckItemStatus, Truck } from '../../types'
+import { trucksApi, tripsApi } from '../../lib/api'
+import type { ChecklistFormState, CheckItemStatus, Truck, Trip } from '../../types'
 import { cn } from '../../lib/utils'
 
 const STEPS = [
@@ -51,6 +51,7 @@ export function ChecklistWizard() {
   })
   const [showExitConfirm, setShowExitConfirm] = useState(false)
   const [currentTruck, setCurrentTruck] = useState<Truck | null>(null)
+  const [currentDriverTrip, setCurrentDriverTrip] = useState<Trip | null>(null)
 
   useEffect(() => {
     async function loadCurrentTruck() {
@@ -63,6 +64,21 @@ export function ChecklistWizard() {
     }
     void loadCurrentTruck()
   }, [form.truck_id])
+
+  useEffect(() => {
+    async function loadDriverTrip() {
+      if (form.driver_id) {
+        const allTrips = await tripsApi.getAll()
+        const activeTrip = allTrips.find(
+          (t) => t.driver_id === form.driver_id && t.status === 'in_route'
+        ) ?? null
+        setCurrentDriverTrip(activeTrip)
+      } else {
+        setCurrentDriverTrip(null)
+      }
+    }
+    void loadDriverTrip()
+  }, [form.driver_id])
 
   const notOkItems = form.occurrences.length
   const hasBlockingIssue = form.occurrences.some((occ) => occ.severity === 'critical' || occ.severity === 'high')
@@ -93,6 +109,10 @@ export function ChecklistWizard() {
       case 1:
         // Bloqueia se o caminhão selecionado estiver em rota
         if (currentTruck && currentTruck.status === 'in_route') {
+          return false
+        }
+        // Bloqueia se o motorista selecionado estiver em viagem
+        if (currentDriverTrip && currentDriverTrip.status === 'in_route') {
           return false
         }
         // Exige dados do veículo e confirmação da senha própria do motorista logo na etapa 1
@@ -234,11 +254,20 @@ export function ChecklistWizard() {
                 Veículo em rota: saída bloqueada
               </span>
             )}
-            {currentStep === 1 && (!currentTruck || currentTruck.status !== 'in_route') && form.driver_id && !form.driver_password_confirmed && (
-              <span className="hidden sm:inline text-xs font-medium text-amber-600">
-                Confirme a senha do motorista para iniciar o checklist
+            {currentStep === 1 && currentDriverTrip?.status === 'in_route' && (
+              <span className="hidden sm:inline text-xs font-semibold text-red-600">
+                Motorista em viagem: saída bloqueada
               </span>
             )}
+            {currentStep === 1 &&
+              (!currentTruck || currentTruck.status !== 'in_route') &&
+              (!currentDriverTrip || currentDriverTrip.status !== 'in_route') &&
+              form.driver_id &&
+              !form.driver_password_confirmed && (
+                <span className="hidden sm:inline text-xs font-medium text-amber-600">
+                  Confirme a senha do motorista para iniciar o checklist
+                </span>
+              )}
             {currentStep === 5 && !form.driver_signature && (
               <span className="hidden sm:inline text-xs font-medium text-amber-600">
                 Desenhe a assinatura para avançar

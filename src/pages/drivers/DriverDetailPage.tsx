@@ -14,6 +14,7 @@ import {
   CheckCircle,
   XCircle,
   Lock,
+  ArrowLeftRight,
 } from 'lucide-react'
 import { Card, CardHeader, CardBody, Button } from '../../components/ui'
 import { driversApi, tripsApi } from '../../lib/api'
@@ -98,6 +99,7 @@ export function DriverDetailPage() {
 
   const tripsCompleted = trips.filter((t) => t.status === 'returned').length
   const tripsActive = trips.filter((t) => t.status === 'in_route').length
+  const activeTrip = trips.find((t) => t.status === 'in_route')
 
   return (
     <div className="space-y-6">
@@ -134,16 +136,55 @@ export function DriverDetailPage() {
                 </p>
               </div>
             </div>
-            <Button
-              variant="outline"
-              leftIcon={Edit2}
-              onClick={() => setShowEditForm(true)}
-            >
-              Editar
-            </Button>
+            <div className="flex items-center gap-2">
+              {activeTrip && (
+                <Button
+                  variant="primary"
+                  leftIcon={ArrowLeftRight}
+                  onClick={() => navigate(`/trips/${activeTrip.id}/return`)}
+                >
+                  Registrar Retorno
+                </Button>
+              )}
+              <Button
+                variant="outline"
+                leftIcon={Edit2}
+                onClick={() => setShowEditForm(true)}
+              >
+                Editar
+              </Button>
+            </div>
           </div>
         </div>
       </div>
+
+      {activeTrip && (
+        <div className="rounded-xl border border-blue-200 bg-blue-50 p-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 animate-fade-in">
+          <div className="flex items-center gap-3">
+            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-blue-100 text-blue-700 shrink-0">
+              <Route className="h-5 w-5" />
+            </div>
+            <div>
+              <p className="text-sm font-bold text-blue-900">
+                Motorista em Viagem Ativa
+              </p>
+              <p className="text-xs text-blue-700">
+                Destino: <strong>{activeTrip.destination}</strong>
+                {activeTrip.truck ? ` · Veículo: ${activeTrip.truck.internal_code} (${activeTrip.truck.plate})` : ''}.
+                Novos checklists de saída para este motorista estão bloqueados até o registro de retorno da viagem.
+              </p>
+            </div>
+          </div>
+          <Button
+            size="sm"
+            variant="primary"
+            onClick={() => navigate(`/trips/${activeTrip.id}/return`)}
+            className="bg-blue-600 hover:bg-blue-700 shrink-0"
+          >
+            Registrar Retorno
+          </Button>
+        </div>
+      )}
 
       <div className="grid gap-6 lg:grid-cols-3">
         {/* Sidebar info */}

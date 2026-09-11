@@ -11,14 +11,20 @@ vi.mock('../../lib/api', () => ({
   checklistsApi: {
     create: vi.fn(),
     saveItems: vi.fn(),
+    savePhotos: vi.fn(),
   },
   trucksApi: {
     update: vi.fn(),
+  },
+  driversApi: {
+    getById: vi.fn(),
+    update: vi.fn().mockResolvedValue({ data: {}, error: null }),
   },
 }))
 
 import { TripReturnPage } from '../../pages/trips/TripReturnPage'
 import { tripsApi, checklistsApi, trucksApi } from '../../lib/api'
+import { hashDriverPassword } from '../../lib/driver-auth'
 
 const mockTripInRoute = {
   id: 'trip-1',
@@ -49,8 +55,30 @@ function renderPage(tripId = 'trip-1') {
   )
 }
 
+async function authenticateDriverOnStep1(password = '1234') {
+  const createPwdInput = screen.queryByLabelText(/Criar Senha Própria/i)
+  if (createPwdInput) {
+    fireEvent.change(createPwdInput, { target: { value: password } })
+    const confirmPwdInput = screen.getByLabelText(/Confirmar Senha/i)
+    fireEvent.change(confirmPwdInput, { target: { value: password } })
+    fireEvent.click(screen.getByText(/Salvar Senha e Liberar Retorno/i))
+    await waitFor(() => {
+      expect(screen.getByText('Motorista Autenticado com Sucesso')).toBeInTheDocument()
+    })
+    return
+  }
+
+  const pwdInput = screen.getByPlaceholderText(/Digite sua senha de motorista/i)
+  fireEvent.change(pwdInput, { target: { value: password } })
+  fireEvent.click(screen.getByRole('button', { name: /Confirmar Senha/i }))
+  await waitFor(() => {
+    expect(screen.getByText('Motorista Autenticado com Sucesso')).toBeInTheDocument()
+  })
+}
+
 describe('TripReturnPage', () => {
   beforeEach(() => {
+    localStorage.clear()
     vi.mocked(tripsApi.getAll).mockResolvedValue([mockTripInRoute] as any)
     vi.mocked(checklistsApi.create).mockResolvedValue({ data: { id: 'ckl-1' }, error: null } as any)
     vi.mocked(checklistsApi.saveItems).mockResolvedValue({ error: null } as any)
@@ -99,20 +127,74 @@ describe('TripReturnPage', () => {
     expect(screen.getByText('Confirmar')).toBeInTheDocument()
   })
 
-  it('advances to step 2 when Avançar is clicked', async () => {
+  it('blocks advance to step 2 if driver password is not confirmed on step 1', async () => {
     renderPage()
     await waitFor(() => screen.getByText('Resumo da Viagem'))
 
-    fireEvent.click(screen.getByText('Avançar'))
+    const avancarBtn = screen.getByText('Avançar')
+    expect(avancarBtn.closest('button')).toBeDisabled()
+    expect(screen.getByText(/Autenticação do motorista obrigatória/i)).toBeInTheDocument()
+  })
 
+  it('allows setup of password for first-time driver and unlocks advance to step 2', async () => {
+    renderPage()
+    await waitFor(() => screen.getByText('Resumo da Viagem'))
+
+    expect(screen.getByText(/Primeiro registro de retorno de João Silva/i)).toBeInTheDocument()
+
+    await authenticateDriverOnStep1('4321')
+
+    const avancarBtn = screen.getByText('Avançar')
+    expect(avancarBtn.closest('button')).not.toBeDisabled()
+
+    fireEvent.click(avancarBtn)
     await waitFor(() => {
       expect(screen.getByText('Quilometragem de Retorno')).toBeInTheDocument()
     })
   })
 
+  it('prompts for password when driver already has password configured, rejects wrong password and accepts valid password', async () => {
+    const hash = await hashDriverPassword('segredo123')
+    const tripWithPassword = {
+      ...mockTripInRoute,
+      driver: {
+        ...mockTripInRoute.driver,
+        password_hash: hash,
+      },
+    }
+    vi.mocked(tripsApi.getAll).mockResolvedValue([tripWithPassword] as any)
+
+    renderPage()
+    await waitFor(() => screen.getByText('Resumo da Viagem'))
+
+    expect(screen.getByText('Confirme a Senha de João Silva')).toBeInTheDocument()
+
+    const pwdInput = screen.getByPlaceholderText(/Digite sua senha de motorista/i)
+    fireEvent.change(pwdInput, { target: { value: 'senhaerrada' } })
+    fireEvent.click(screen.getByRole('button', { name: /Confirmar Senha/i }))
+
+    await waitFor(() => {
+      expect(screen.getByText(/Senha incorreta/i)).toBeInTheDocument()
+    })
+
+    const avancarBtn = screen.getByText('Avançar')
+    expect(avancarBtn.closest('button')).toBeDisabled()
+
+    // Now enter right password
+    fireEvent.change(pwdInput, { target: { value: 'segredo123' } })
+    fireEvent.click(screen.getByRole('button', { name: /Confirmar Senha/i }))
+
+    await waitFor(() => {
+      expect(screen.getByText('Motorista Autenticado com Sucesso')).toBeInTheDocument()
+    })
+    expect(avancarBtn.closest('button')).not.toBeDisabled()
+  })
+
   it('blocks advance on step 2 if KM is invalid', async () => {
     renderPage()
     await waitFor(() => screen.getByText('Resumo da Viagem'))
+    await authenticateDriverOnStep1()
+
     fireEvent.click(screen.getByText('Avançar'))
     await waitFor(() => screen.getByText('Quilometragem de Retorno'))
 
@@ -127,6 +209,8 @@ describe('TripReturnPage', () => {
   it('allows advance on step 2 with valid KM', async () => {
     renderPage()
     await waitFor(() => screen.getByText('Resumo da Viagem'))
+    await authenticateDriverOnStep1()
+
     fireEvent.click(screen.getByText('Avançar'))
     await waitFor(() => screen.getByText('Quilometragem de Retorno'))
 
@@ -140,6 +224,8 @@ describe('TripReturnPage', () => {
   it('shows distance when return KM > departure KM', async () => {
     renderPage()
     await waitFor(() => screen.getByText('Resumo da Viagem'))
+    await authenticateDriverOnStep1()
+
     fireEvent.click(screen.getByText('Avançar'))
     await waitFor(() => screen.getByText('Quilometragem de Retorno'))
 
@@ -170,6 +256,8 @@ describe('TripReturnPage', () => {
   it('goes back to step 1 from step 2 via Voltar button', async () => {
     renderPage()
     await waitFor(() => screen.getByText('Resumo da Viagem'))
+    await authenticateDriverOnStep1()
+
     fireEvent.click(screen.getByText('Avançar'))
     await waitFor(() => screen.getByText('Quilometragem de Retorno'))
 

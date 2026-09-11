@@ -19,6 +19,7 @@ import {
   formatDateTime,
   cn,
 } from '../../lib/utils'
+import { checkTruckRodizio } from '../../lib/rodizio'
 import type { Truck as TruckType, TruckStatus, OccurrenceSeverity, Trip, Occurrence, Maintenance } from '../../types'
 
 export function TruckDetailPage() {
@@ -72,6 +73,7 @@ export function TruckDetailPage() {
 
   const status = truck.status as TruckStatus
   const colors = TRUCK_STATUS_COLORS[status] || { dot: 'bg-slate-400', badge: 'bg-slate-100 text-slate-700' }
+  const rodizio = checkTruckRodizio(truck.plate)
 
   return (
     <div className="space-y-6">
@@ -190,6 +192,69 @@ export function TruckDetailPage() {
               )}
             </CardBody>
           </Card>
+
+          {/* Regras de Rodízio Municipal (SP) */}
+          {rodizio && (
+            <Card className={cn(
+              'border transition-all',
+              rodizio.isRodizioToday
+                ? rodizio.isTruckRestrictedNow
+                  ? 'border-amber-400 bg-gradient-to-br from-amber-50 to-orange-50/50 shadow-xs'
+                  : 'border-amber-200 bg-amber-50/40 shadow-xs'
+                : 'border-slate-200'
+            )}>
+              <CardHeader>
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <span className="flex h-6 w-6 items-center justify-center rounded-md bg-amber-500 text-white text-xs font-bold">
+                      ⚠️
+                    </span>
+                    <h3 className="font-semibold text-slate-800">Rodízio de Placas (SP)</h3>
+                  </div>
+                  {rodizio.isRodizioToday && (
+                    <span className={cn(
+                      'rounded-full px-2 py-0.5 text-[10px] font-bold border',
+                      rodizio.isTruckRestrictedNow
+                        ? 'bg-amber-200 text-amber-950 border-amber-400 animate-pulse'
+                        : 'bg-amber-100 text-amber-900 border-amber-300'
+                    )}>
+                      {rodizio.isTruckRestrictedNow ? 'Restrição Ativa Agora' : 'Hoje'}
+                    </span>
+                  )}
+                </div>
+              </CardHeader>
+              <CardBody className="space-y-3 text-xs">
+                <div className="flex items-center justify-between">
+                  <span className="text-slate-500">Dígito Final da Placa</span>
+                  <span className="font-bold text-slate-800 text-sm">
+                    {rodizio.lastDigit ?? '—'}
+                  </span>
+                </div>
+                <div className="flex items-center justify-between">
+                  <span className="text-slate-500">Dia Oficial de Restrição</span>
+                  <span className="font-semibold text-slate-800">
+                    {rodizio.rodizioDayName}
+                  </span>
+                </div>
+                <div className="flex items-center justify-between">
+                  <span className="text-slate-500">Status no Dia de Hoje</span>
+                  <span className={cn(
+                    'font-bold px-2 py-0.5 rounded text-[11px]',
+                    rodizio.isRodizioToday
+                      ? 'bg-amber-100 text-amber-900'
+                      : 'bg-emerald-100 text-emerald-800'
+                  )}>
+                    {rodizio.isRodizioToday ? '⚠️ Em Rodízio Hoje' : '✅ Livre Hoje'}
+                  </span>
+                </div>
+                <div className="border-t border-slate-200/80 pt-2 text-slate-600 leading-relaxed space-y-0.5">
+                  <p className="font-medium text-slate-700">Horários CET-SP:</p>
+                  <p>• <strong>Caminhões (ZMRC):</strong> 05h00 às 21h00</p>
+                  <p>• <strong>Automóveis:</strong> 07h-10h e 17h-20h</p>
+                </div>
+              </CardBody>
+            </Card>
+          )}
 
           {/* Quick stats */}
           <Card>

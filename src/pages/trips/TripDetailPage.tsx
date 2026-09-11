@@ -19,6 +19,7 @@ import {
   formatMileage,
   cn,
 } from '../../lib/utils'
+import { formatDurationMinutes } from '../../lib/route-calculator'
 import type { Trip, TripStatus } from '../../types'
 
 export function TripDetailPage() {
@@ -154,6 +155,57 @@ export function TripDetailPage() {
               )}
             </CardBody>
           </Card>
+
+          {/* Estimativa de Rota e Previsão de Chegada (ETA) */}
+          {(trip.estimated_distance_km || trip.estimated_return) && (
+            <Card className="border-blue-200 bg-gradient-to-br from-blue-50/50 via-white to-indigo-50/30 shadow-xs">
+              <CardHeader>
+                <div className="flex items-center gap-2">
+                  <span className="flex h-6 w-6 items-center justify-center rounded-md bg-blue-600 text-white text-xs font-bold">
+                    IA
+                  </span>
+                  <h3 className="font-semibold text-slate-800">Estimativa de Rota & ETA</h3>
+                </div>
+              </CardHeader>
+              <CardBody className="space-y-3">
+                {trip.estimated_distance_km ? (
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm text-slate-500">Distância Prevista</span>
+                    <span className="text-sm font-bold text-blue-800">
+                      {trip.estimated_distance_km.toLocaleString('pt-BR')} km
+                    </span>
+                  </div>
+                ) : null}
+
+                {trip.estimated_duration_minutes ? (
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm text-slate-500">Tempo de Viagem Est.</span>
+                    <span className="text-sm font-bold text-amber-800">
+                      {formatDurationMinutes(trip.estimated_duration_minutes)}
+                    </span>
+                  </div>
+                ) : null}
+
+                {trip.estimated_return ? (
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm text-slate-500">Previsão de Chegada</span>
+                    <span className="text-sm font-bold text-emerald-800">
+                      {formatDateTime(trip.estimated_return)}
+                    </span>
+                  </div>
+                ) : null}
+
+                {trip.estimated_distance_km ? (
+                  <div className="flex items-center justify-between border-t border-blue-100 pt-2 text-xs text-slate-500">
+                    <span>Diesel estimado (~3.5 km/L)</span>
+                    <span className="font-semibold text-purple-700">
+                      ~{(trip.estimated_distance_km / 3.5).toFixed(0)} L
+                    </span>
+                  </div>
+                ) : null}
+              </CardBody>
+            </Card>
+          )}
 
           {/* KM */}
           <Card>

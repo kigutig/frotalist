@@ -33,6 +33,7 @@ import {
   formatMileage,
   cn,
 } from '../../lib/utils'
+import { checkTruckRodizio, getTodayRodizioInfo } from '../../lib/rodizio'
 import type { Truck as TruckType, TruckStatus } from '../../types'
 
 const STATUS_FILTER_OPTIONS = [
@@ -50,8 +51,12 @@ export function TrucksPage() {
   const [loading, setLoading] = useState(true)
   const [search, setSearch] = useState('')
   const [statusFilter, setStatusFilter] = useState('')
+  const [onlyRodizioToday, setOnlyRodizioToday] = useState(false)
   const [showForm, setShowForm] = useState(false)
   const [editingTruck, setEditingTruck] = useState<TruckType | null>(null)
+
+  const todayRodizio = getTodayRodizioInfo()
+  const rodizioTrucksCount = trucksList.filter((t) => checkTruckRodizio(t.plate).isRodizioToday).length
 
   const loadTrucks = useCallback(async () => {
     setLoading(true)
@@ -128,7 +133,8 @@ export function TrucksPage() {
       t.brand.toLowerCase().includes(q) ||
       t.model.toLowerCase().includes(q)
     const matchesStatus = !statusFilter || t.status === statusFilter
-    return matchesSearch && matchesStatus
+    const matchesRodizio = !onlyRodizioToday || checkTruckRodizio(t.plate).isRodizioToday
+    return matchesSearch && matchesStatus && matchesRodizio
   })
 
   // Summary counts
@@ -175,6 +181,52 @@ export function TrucksPage() {
             </button>
           )
         })}
+      </div>
+
+      {/* Banner Informativo de Rodízio do Dia */}
+      <div className="rounded-xl border border-amber-200 bg-gradient-to-r from-amber-50 via-orange-50/40 to-amber-50/80 p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-2xs">
+        <div className="flex items-center gap-3">
+          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-amber-100 text-amber-800 font-bold border border-amber-300 shadow-2xs">
+            ⚠️
+          </div>
+          <div>
+            <div className="flex items-center gap-2 flex-wrap">
+              <p className="text-sm font-bold text-amber-950">
+                Rodízio Municipal de SP Hoje ({todayRodizio.dayName})
+              </p>
+              <span className="rounded-full bg-amber-200 px-2 py-0.5 text-xs font-bold text-amber-900 border border-amber-300">
+                {todayRodizio.restrictedDigitsText}
+              </span>
+            </div>
+            <p className="text-xs text-amber-800 mt-0.5">
+              Restrição para caminhões na ZMRC das <strong>05h00 às 21h00</strong>.
+              {rodizioTrucksCount > 0 ? (
+                <span className="font-semibold text-amber-950 ml-1">
+                  Existem {rodizioTrucksCount} caminhão(ões) da sua frota com final de placa restrito hoje.
+                </span>
+              ) : (
+                <span className="text-emerald-700 font-medium ml-1">
+                  Nenhum caminhão da frota possui final restrito hoje.
+                </span>
+              )}
+            </p>
+          </div>
+        </div>
+
+        {rodizioTrucksCount > 0 && (
+          <button
+            type="button"
+            onClick={() => setOnlyRodizioToday(!onlyRodizioToday)}
+            className={cn(
+              'shrink-0 text-xs font-semibold px-3.5 py-1.5 rounded-lg border transition-all',
+              onlyRodizioToday
+                ? 'bg-amber-600 text-white border-amber-700 shadow-xs ring-2 ring-amber-300'
+                : 'bg-white text-amber-900 border-amber-300 hover:bg-amber-100 shadow-2xs'
+            )}
+          >
+            {onlyRodizioToday ? '✕ Limpar Filtro de Rodízio' : `Ver ${rodizioTrucksCount} em Rodízio`}
+          </button>
+        )}
       </div>
 
       {/* Filters */}
@@ -232,6 +284,7 @@ export function TrucksPage() {
               {trucks.map((truck) => {
                 const status = truck.status as TruckStatus
                 const colors = TRUCK_STATUS_COLORS[status] || { dot: 'bg-slate-400', badge: 'bg-slate-100 text-slate-700' }
+                const truckRodizio = checkTruckRodizio(truck.plate)
                 return (
                   <tr
                     key={truck.id}
@@ -244,7 +297,22 @@ export function TrucksPage() {
                           <Truck className="h-4 w-4 text-blue-600" />
                         </div>
                         <div>
-                          <p className="font-semibold text-slate-800">{truck.plate}</p>
+                          <div className="flex items-center gap-1.5 flex-wrap">
+                            <p className="font-semibold text-slate-800">{truck.plate}</p>
+                            {truckRodizio.isRodizioToday && (
+                              <span
+                                className={cn(
+                                  'inline-flex items-center gap-1 rounded-md px-1.5 py-0.5 text-[10px] font-bold border',
+                                  truckRodizio.isTruckRestrictedNow
+                                    ? 'bg-amber-100 text-amber-900 border-amber-300 animate-pulse'
+                                    : 'bg-amber-50 text-amber-800 border-amber-200'
+                                )}
+                                title={truckRodizio.warningMessage}
+                              >
+                                ⚠️ Rodízio Hoje
+                              </span>
+                            )}
+                          </div>
                           {truck.internal_code && truck.internal_code !== truck.plate && (
                             <p className="text-xs text-slate-400">{truck.internal_code}</p>
                           )}

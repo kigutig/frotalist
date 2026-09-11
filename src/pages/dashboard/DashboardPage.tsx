@@ -21,6 +21,7 @@ import {
   formatMileage,
   cn,
 } from '../../lib/utils'
+import { checkTruckRodizio, getTodayRodizioInfo } from '../../lib/rodizio'
 import type { Truck as TruckType, Trip, Occurrence, Checklist } from '../../types'
 
 export function DashboardPage() {
@@ -89,6 +90,8 @@ export function DashboardPage() {
   ]
 
   const activeTrips = trips.filter((t) => t.status === 'in_route' || t.status === 'released')
+  const todayRodizio = getTodayRodizioInfo()
+  const affectedTrucks = trucks.filter((t) => checkTruckRodizio(t.plate).isRodizioToday)
 
   return (
     <div className="space-y-6">
@@ -118,6 +121,48 @@ export function DashboardPage() {
             </Button>
           </div>
         </div>
+      </div>
+
+      {/* Banner de Rodízio Municipal de SP */}
+      <div className="rounded-xl border border-amber-200 bg-gradient-to-r from-amber-50 via-orange-50/40 to-amber-50/80 p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-2xs">
+        <div className="flex items-center gap-3">
+          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-amber-100 text-amber-800 font-bold border border-amber-300 shadow-2xs">
+            ⚠️
+          </div>
+          <div>
+            <div className="flex items-center gap-2 flex-wrap">
+              <span className="text-xs font-bold uppercase tracking-wider text-amber-900 bg-amber-200/80 px-2 py-0.5 rounded border border-amber-300">
+                Rodízio SP Hoje — {todayRodizio.dayName}
+              </span>
+              <span className="text-sm font-bold text-amber-950">
+                {todayRodizio.restrictedDigitsText}
+              </span>
+            </div>
+            <p className="text-xs text-amber-800 mt-1">
+              Restrição para caminhões (ZMRC de SP): <strong>05h00 às 21h00</strong>.
+              {affectedTrucks.length > 0 ? (
+                <span className="font-semibold text-amber-950 ml-1">
+                  {affectedTrucks.length} caminhão(ões) da frota com placa final restrita hoje ({affectedTrucks.map((t) => t.plate).join(', ')}).
+                </span>
+              ) : (
+                <span className="text-emerald-700 font-medium ml-1">
+                  Nenhum caminhão da frota possui final restrito hoje.
+                </span>
+              )}
+            </p>
+          </div>
+        </div>
+
+        {affectedTrucks.length > 0 && (
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => navigate('/trucks')}
+            className="shrink-0 text-xs bg-white border-amber-300 text-amber-900 hover:bg-amber-100"
+          >
+            Ver Caminhões ({affectedTrucks.length})
+          </Button>
+        )}
       </div>
 
       {/* KPI Cards */}

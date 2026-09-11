@@ -13,10 +13,20 @@ import {
   Plus,
   Trash2,
   Camera,
+  KeyRound,
+  Lock,
+  ShieldCheck,
+  Eye,
+  EyeOff,
 } from 'lucide-react'
-import { Button, Input } from '../../components/ui'
-import { tripsApi, checklistsApi, trucksApi } from '../../lib/api'
+import { Button, Input, Alert } from '../../components/ui'
+import { tripsApi, checklistsApi, trucksApi, driversApi } from '../../lib/api'
 import { Step8_Photos } from '../checklists/steps/Step8_Photos'
+import {
+  hasDriverPassword,
+  verifyDriverPassword,
+  saveDriverPassword,
+} from '../../lib/driver-auth'
 import {
   TRIP_STATUS_LABELS,
   formatMileage,
@@ -24,7 +34,8 @@ import {
   cn,
   sanitizeImageUrl,
 } from '../../lib/utils'
-import type { Trip, ChecklistPhoto } from '../../types'
+import { getNetworkDate, formatNetworkDateTime } from '../../lib/server-time'
+import type { Trip, ChecklistPhoto, Driver } from '../../types'
 
 // ---- Types ----
 interface ReturnOccurrence {
@@ -53,10 +64,22 @@ export function TripReturnPage() {
   const navigate = useNavigate()
 
   const [trip, setTrip] = useState<Trip | null>(null)
+  const [driver, setDriver] = useState<Driver | null>(null)
   const [loading, setLoading] = useState(true)
   const [currentStep, setCurrentStep] = useState(1)
   const [saving, setSaving] = useState(false)
   const [done, setDone] = useState(false)
+
+  // Driver authentication state
+  const [driverPasswordConfirmed, setDriverPasswordConfirmed] = useState(false)
+  const [enteredPassword, setEnteredPassword] = useState('')
+  const [authError, setAuthError] = useState('')
+  const [showPassword, setShowPassword] = useState(false)
+  const [isVerifying, setIsVerifying] = useState(false)
+  const [isSettingPassword, setIsSettingPassword] = useState(false)
+  const [newPassword, setNewPassword] = useState('')
+  const [confirmNewPassword, setConfirmNewPassword] = useState('')
+  const [setupError, setSetupError] = useState('')
 
   // Form state
   const [returnMileage, setReturnMileage] = useState('')
@@ -76,6 +99,11 @@ export function TripReturnPage() {
       const allTrips = await tripsApi.getAll()
       const found = allTrips.find((t) => t.id === id) ?? null
       setTrip(found)
+      let d = found?.driver ?? null
+      if (!d && found?.driver_id) {
+        d = await driversApi.getById(found.driver_id)
+      }
+      setDriver(d)
       if (found?.departure_mileage) {
         setReturnMileage(String(found.departure_mileage))
       }
@@ -83,6 +111,48 @@ export function TripReturnPage() {
     }
     void loadData()
   }, [id])
+
+  const currentDriver = driver || trip?.driver || null
+  const driverHasPassword = hasDriverPassword(currentDriver)
+
+  async function handleVerifyPassword() {
+    if (!currentDriver) return
+    setIsVerifying(true)
+    setAuthError('')
+    const ok = await verifyDriverPassword(currentDriver, enteredPassword)
+    if (ok) {
+      setDriverPasswordConfirmed(true)
+    } else {
+      setAuthError(
+        `Senha incorreta! Não é permitido registrar o retorno em nome de ${currentDriver.name}.`
+      )
+      setDriverPasswordConfirmed(false)
+    }
+    setIsVerifying(false)
+  }
+
+  async function handleCreatePassword() {
+    if (!currentDriver) return
+    if (newPassword.trim().length < 4) {
+      setSetupError('A senha deve ter pelo menos 4 caracteres ou dígitos.')
+      return
+    }
+    if (newPassword !== confirmNewPassword) {
+      setSetupError('As senhas digitadas não coincidem.')
+      return
+    }
+    setIsSettingPassword(true)
+    setSetupError('')
+    const res = await saveDriverPassword(currentDriver.id, newPassword.trim())
+    if (res.success) {
+      const updated: Driver = { ...currentDriver, password_hash: res.hash }
+      setDriver(updated)
+      setDriverPasswordConfirmed(true)
+    } else {
+      setSetupError(res.error || 'Erro ao salvar a senha do motorista.')
+    }
+    setIsSettingPassword(false)
+  }
 
   const addOccurrence = () => {
     if (!newOccDesc.trim()) return
@@ -96,6 +166,9 @@ export function TripReturnPage() {
   }
 
   function canProceed(): boolean {
+    if (currentStep === 1) {
+      return driverPasswordConfirmed
+    }
     if (currentStep === 2) {
       const km = Number(returnMileage)
       return km > 0 && (!trip?.departure_mileage || km >= trip.departure_mileage)
@@ -105,9 +178,15 @@ export function TripReturnPage() {
 
   async function handleFinalize() {
     if (!trip || !id) return
+    if (!driverPasswordConfirmed) {
+      alert('É necessário autenticar o motorista com senha antes de confirmar o retorno.')
+      return
+    }
     setSaving(true)
     try {
       const returnKm = Number(returnMileage)
+      const networkNow = getNetworkDate()
+      const networkIso = networkNow.toISOString()
 
       // 1. Criar checklist de retorno
       const { data: returnChecklist } = await checklistsApi.create({
@@ -116,10 +195,11 @@ export function TripReturnPage() {
         trip_id: id,
         type: 'return',
         status: 'completed',
-        started_at: new Date().toISOString(),
-        completed_at: new Date().toISOString(),
+        started_at: networkIso,
+        completed_at: networkIso,
         mileage: returnKm,
         notes: notes || undefined,
+        driver_password_confirmed: true,
       })
 
       // 1.1 Salvar fotos registradas no retorno
@@ -138,7 +218,7 @@ export function TripReturnPage() {
       // 2. Atualizar a viagem
       await tripsApi.update(id, {
         status: 'returned',
-        return_at: new Date().toISOString(),
+        return_at: networkIso,
         return_mileage: returnKm,
         return_checklist_id: returnChecklist?.id,
         deliveries_completed: deliveriesCompleted ? Number(deliveriesCompleted) : undefined,
@@ -220,6 +300,7 @@ export function TripReturnPage() {
           {distance !== null && (
             <p className="text-sm text-green-800">🛣️ Distância percorrida: <strong>{distance.toLocaleString('pt-BR')} km</strong></p>
           )}
+          <p className="text-sm text-green-800">🔒 Autenticação: <strong>Senha do motorista confirmada</strong></p>
           <p className="text-sm text-green-800">🕐 Registrado em: <strong>{new Date().toLocaleString('pt-BR')}</strong></p>
         </div>
 
@@ -329,10 +410,174 @@ export function TripReturnPage() {
                   </div>
                 ))}
               </div>
-              <div className="rounded-xl border-2 border-green-200 bg-green-50 p-4 text-center">
-                <p className="text-sm font-semibold text-green-700">✅ Pronto para registrar o retorno</p>
-                <p className="text-xs text-green-600 mt-1">Clique em Avançar para continuar</p>
-              </div>
+              {/* Confirmação de senha do motorista logo no Resumo (Etapa 1) */}
+              {currentDriver && (
+                <div className="pt-2">
+                  {driverPasswordConfirmed ? (
+                    <div className="rounded-xl border border-emerald-200 bg-emerald-50/80 p-3.5 flex items-center justify-between animate-fade-in">
+                      <div className="flex items-center gap-2.5">
+                        <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-emerald-100 text-emerald-700 shrink-0">
+                          <ShieldCheck className="h-5 w-5" />
+                        </div>
+                        <div>
+                          <p className="text-xs font-bold text-emerald-900">
+                            Motorista Autenticado com Sucesso
+                          </p>
+                          <p className="text-xs text-emerald-700">
+                            Identidade de <strong>{currentDriver.name}</strong> confirmada por senha própria. Retorno liberado para registro.
+                          </p>
+                        </div>
+                      </div>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => {
+                          setDriverPasswordConfirmed(false)
+                        }}
+                        className="text-emerald-700 hover:bg-emerald-100 text-xs"
+                      >
+                        Alterar
+                      </Button>
+                    </div>
+                  ) : driverHasPassword ? (
+                    <div className="rounded-xl border border-blue-200 bg-blue-50/60 p-4 space-y-3 animate-fade-in">
+                      <div className="flex items-start gap-2.5">
+                        <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-blue-100 text-blue-700 shrink-0 mt-0.5">
+                          <KeyRound className="h-4 w-4" />
+                        </div>
+                        <div>
+                          <p className="text-sm font-bold text-slate-800">
+                            Confirme a Senha de {currentDriver.name}
+                          </p>
+                          <p className="text-xs text-slate-500">
+                            Para registrar o retorno e garantir que ninguém use seu nome, digite sua senha própria para prosseguir:
+                          </p>
+                        </div>
+                      </div>
+
+                      {authError && (
+                        <Alert type="error" className="text-xs py-2">
+                          {authError}
+                        </Alert>
+                      )}
+
+                      <div className="flex flex-col sm:flex-row gap-2">
+                        <div className="relative flex-1">
+                          <Input
+                            type={showPassword ? 'text' : 'password'}
+                            placeholder="Digite sua senha de motorista..."
+                            value={enteredPassword}
+                            onChange={(e) => {
+                              setEnteredPassword(e.target.value)
+                              if (authError) setAuthError('')
+                            }}
+                            onKeyDown={(e) => {
+                              if (e.key === 'Enter') {
+                                e.preventDefault()
+                                void handleVerifyPassword()
+                              }
+                            }}
+                            className="pr-10"
+                          />
+                          <button
+                            type="button"
+                            onClick={() => setShowPassword(!showPassword)}
+                            className="absolute right-3 top-2.5 text-slate-400 hover:text-slate-600"
+                            tabIndex={-1}
+                          >
+                            {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                          </button>
+                        </div>
+
+                        <Button
+                          type="button"
+                          variant="primary"
+                          onClick={() => void handleVerifyPassword()}
+                          loading={isVerifying}
+                          disabled={!enteredPassword.trim()}
+                        >
+                          Confirmar Senha
+                        </Button>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="rounded-xl border border-amber-200 bg-amber-50/70 p-4 space-y-3 animate-fade-in">
+                      <div className="flex items-start gap-2.5">
+                        <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-amber-100 text-amber-700 shrink-0 mt-0.5">
+                          <Lock className="h-4 w-4" />
+                        </div>
+                        <div>
+                          <p className="text-sm font-bold text-amber-950">
+                            Primeiro registro de retorno de {currentDriver.name}
+                          </p>
+                          <p className="text-xs text-amber-800 mt-0.5">
+                            Crie sua senha própria agora para que ninguém use seu nome em saídas e retornos (pode ser a mesma de quando criou a conta):
+                          </p>
+                        </div>
+                      </div>
+
+                      {setupError && (
+                        <Alert type="error" className="text-xs py-2">
+                          {setupError}
+                        </Alert>
+                      )}
+
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                        <Input
+                          label="Criar Senha Própria"
+                          type="password"
+                          placeholder="Mínimo 4 caracteres..."
+                          value={newPassword}
+                          onChange={(e) => {
+                            setNewPassword(e.target.value)
+                            if (setupError) setSetupError('')
+                          }}
+                        />
+                        <Input
+                          label="Confirmar Senha"
+                          type="password"
+                          placeholder="Repita a nova senha..."
+                          value={confirmNewPassword}
+                          onChange={(e) => {
+                            setConfirmNewPassword(e.target.value)
+                            if (setupError) setSetupError('')
+                          }}
+                        />
+                      </div>
+
+                      <Button
+                        type="button"
+                        variant="primary"
+                        className="w-full bg-amber-600 hover:bg-amber-700"
+                        onClick={() => void handleCreatePassword()}
+                        loading={isSettingPassword}
+                        disabled={!newPassword || !confirmNewPassword}
+                      >
+                        Salvar Senha e Liberar Retorno
+                      </Button>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {driverPasswordConfirmed ? (
+                <div className="rounded-xl border-2 border-green-200 bg-green-50 p-4 text-center">
+                  <p className="text-sm font-semibold text-green-700">✅ Motorista autenticado com sucesso</p>
+                  <p className="text-xs text-green-600 mt-1">Clique em Avançar para registrar a quilometragem</p>
+                </div>
+              ) : (
+                <div className="rounded-xl border-2 border-amber-200 bg-amber-50 p-4 text-center">
+                  <p className="text-sm font-semibold text-amber-800">
+                    🔒 Autenticação do motorista obrigatória
+                  </p>
+                  <p className="text-xs text-amber-700 mt-1">
+                    {currentDriver
+                      ? `Confirme a senha de ${currentDriver.name} acima para liberar as etapas do retorno.`
+                      : 'Confirme a senha do motorista acima para continuar.'}
+                  </p>
+                </div>
+              )}
             </div>
           </div>
         )}
@@ -564,6 +809,7 @@ export function TripReturnPage() {
                   { label: 'Rota', value: `${trip.origin ?? '—'} → ${trip.destination}` },
                   { label: 'KM Saída', value: formatMileage(trip.departure_mileage) },
                   { label: 'KM Retorno', value: formatMileage(returnKmNum) },
+                  { label: 'Horário do Retorno', value: `${formatNetworkDateTime(getNetworkDate())} (🌐 Internet)` },
                   ...(distance !== null ? [{ label: 'Distância percorrida', value: `${distance.toLocaleString('pt-BR')} km` }] : []),
                   ...(deliveriesCompleted ? [{ label: 'Entregas realizadas', value: deliveriesCompleted }] : []),
                   ...(deliveriesPending ? [{ label: 'Entregas pendentes', value: deliveriesPending }] : []),
@@ -575,6 +821,13 @@ export function TripReturnPage() {
                     <span className="text-sm font-medium text-slate-800">{item.value}</span>
                   </div>
                 ))}
+                <div className="flex items-center justify-between pt-1 border-t border-slate-200/60">
+                  <span className="text-sm text-slate-500">Autenticação do Motorista</span>
+                  <span className="inline-flex items-center gap-1 text-xs font-semibold text-emerald-700 bg-emerald-100 px-2.5 py-0.5 rounded-md border border-emerald-200">
+                    <ShieldCheck className="h-3.5 w-3.5" />
+                    Senha confirmada ({currentDriver?.name || 'Motorista'})
+                  </span>
+                </div>
               </div>
 
               {photos.length > 0 && (

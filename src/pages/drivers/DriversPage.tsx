@@ -10,6 +10,8 @@ import {
   FileText,
   Eye,
   Loader2,
+  Route,
+  ArrowLeftRight,
 } from 'lucide-react'
 import {
   Card,
@@ -27,7 +29,7 @@ import {
   ActionMenu,
 } from '../../components/ui'
 import { DriverFormModal } from './DriverFormModal'
-import { driversApi } from '../../lib/api'
+import { driversApi, tripsApi } from '../../lib/api'
 import {
   DRIVER_STATUS_LABELS,
   DRIVER_STATUS_COLORS,
@@ -37,7 +39,7 @@ import {
   isCNHExpired,
   cn,
 } from '../../lib/utils'
-import type { Driver, DriverStatus } from '../../types'
+import type { Driver, DriverStatus, Trip } from '../../types'
 
 const STATUS_OPTIONS = [
   { value: '', label: 'Todos os status' },
@@ -49,6 +51,7 @@ const STATUS_OPTIONS = [
 export function DriversPage() {
   const navigate = useNavigate()
   const [driversList, setDriversList] = useState<Driver[]>([])
+  const [tripsList, setTripsList] = useState<Trip[]>([])
   const [loading, setLoading] = useState(true)
   const [search, setSearch] = useState('')
   const [statusFilter, setStatusFilter] = useState('')
@@ -57,14 +60,19 @@ export function DriversPage() {
 
   const loadDrivers = useCallback(async () => {
     setLoading(true)
-    const data = await driversApi.getAll()
-    setDriversList(data)
+    const [dData, tData] = await Promise.all([driversApi.getAll(), tripsApi.getAll()])
+    setDriversList(dData)
+    setTripsList(tData)
     setLoading(false)
   }, [])
 
   useEffect(() => {
     void loadDrivers()
   }, [loadDrivers])
+
+  const activeTripsByDriver = new Map(
+    tripsList.filter((t) => t.status === 'in_route').map((t) => [t.driver_id, t])
+  )
 
   const handleSaveDriver = async (formData: Partial<Driver>) => {
     if (editingDriver) {
@@ -77,6 +85,13 @@ export function DriversPage() {
   }
 
   const handleDeleteDriver = async (driver: Driver) => {
+    if (activeTripsByDriver.has(driver.id)) {
+      alert(
+        `O motorista ${driver.name} possui uma viagem ativa em rota e não pode ser excluído. Registre o retorno da viagem primeiro.`
+      )
+      return
+    }
+
     if (!window.confirm(`Tem certeza que deseja excluir o motorista ${driver.name}?`)) {
       return
     }
@@ -225,6 +240,7 @@ export function DriversPage() {
                 const expired = isCNHExpired(driver.cnh_expiration)
                 const expiring = isCNHExpiring(driver.cnh_expiration, 60)
                 const days = daysUntil(driver.cnh_expiration)
+                const activeTrip = activeTripsByDriver.get(driver.id)
 
                 return (
                   <tr
@@ -234,18 +250,18 @@ export function DriversPage() {
                   >
                     <Td>
                       <div className="flex items-center gap-3">
-                        <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-slate-200 text-sm font-semibold text-slate-600">
-                          {driver.name.split(' ').map((n) => n[0]).slice(0, 2).join('')}
+                        <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-indigo-100 font-bold text-indigo-700 text-sm">
+                          {driver.name.split(' ').map((n) => n[0]).slice(0, 2).join('').toUpperCase()}
                         </div>
                         <div>
                           <p className="font-semibold text-slate-800">{driver.name}</p>
-                          <p className="flex items-center gap-1 text-xs text-slate-500">
+                          <p className="text-xs text-slate-500 flex items-center gap-1">
                             <Phone className="h-3 w-3" />
                             {driver.phone}
                           </p>
-                          {driver.user ? (
-                            <span className="inline-flex items-center gap-1 mt-1 rounded bg-indigo-50 px-1.5 py-0.5 text-2xs font-medium text-indigo-700">
-                              🔗 {driver.user.email}
+                          {driver.password_hash ? (
+                            <span className="inline-flex items-center gap-1 mt-1 rounded bg-emerald-50 px-1.5 py-0.5 text-2xs font-semibold text-emerald-700 border border-emerald-200">
+                              🔒 Senha de saída própria
                             </span>
                           ) : driver.user_id ? (
                             <span className="inline-flex items-center gap-1 mt-1 rounded bg-indigo-50 px-1.5 py-0.5 text-2xs font-medium text-indigo-700">
@@ -285,15 +301,22 @@ export function DriversPage() {
                       </div>
                     </Td>
                     <Td>
-                      <span
-                        className={cn(
-                          'inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-medium',
-                          colors.badge
-                        )}
-                      >
-                        <span className={cn('h-1.5 w-1.5 rounded-full', colors.dot)} />
-                        {DRIVER_STATUS_LABELS[status]}
-                      </span>
+                      {activeTrip ? (
+                        <span className="inline-flex items-center gap-1.5 rounded-full border border-blue-200 bg-blue-50 px-2.5 py-1 text-xs font-semibold text-blue-700">
+                          <span className="h-1.5 w-1.5 rounded-full bg-blue-500 animate-pulse" />
+                          Em Viagem ({activeTrip.truck?.internal_code || 'Rota'})
+                        </span>
+                      ) : (
+                        <span
+                          className={cn(
+                            'inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-medium',
+                            colors.badge
+                          )}
+                        >
+                          <span className={cn('h-1.5 w-1.5 rounded-full', colors.dot)} />
+                          {DRIVER_STATUS_LABELS[status]}
+                        </span>
+                      )}
                     </Td>
                     <Td className="text-right">
                       <ActionMenu
@@ -304,6 +327,18 @@ export function DriversPage() {
                             onClick: () => navigate(`/drivers/${driver.id}`),
                           },
                           {
+                            label: 'Registrar Retorno',
+                            icon: ArrowLeftRight,
+                            hidden: !activeTrip,
+                            onClick: () => navigate(`/trips/${activeTrip?.id}/return`),
+                          },
+                          {
+                            label: 'Ver Viagem Ativa',
+                            icon: Route,
+                            hidden: !activeTrip,
+                            onClick: () => navigate(`/trips/${activeTrip?.id}`),
+                          },
+                          {
                             label: 'Editar',
                             icon: Edit2,
                             onClick: () => { setEditingDriver(driver); setShowForm(true) },
@@ -312,6 +347,7 @@ export function DriversPage() {
                             label: 'Excluir',
                             icon: Trash2,
                             danger: true,
+                            disabled: !!activeTrip,
                             onClick: () => void handleDeleteDriver(driver),
                           },
                         ]}

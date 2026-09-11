@@ -110,15 +110,29 @@ export function TripsPage() {
                       <div className="flex items-center gap-2 text-sm">
                         <span className="text-slate-500 truncate max-w-[100px]">{trip.origin?.split(' — ')[0] || 'Origem'}</span>
                         <ArrowRight className="h-3.5 w-3.5 shrink-0 text-slate-400" />
-                        <span className="font-medium text-slate-700 truncate max-w-[100px]">{trip.destination}</span>
+                        <span className="font-medium text-slate-700 truncate max-w-[120px]">{trip.destination}</span>
                       </div>
+                      {trip.estimated_distance_km ? (
+                        <p className="text-[11px] text-blue-600 font-medium mt-0.5">
+                          🛣️ {trip.estimated_distance_km} km previstos
+                        </p>
+                      ) : null}
                     </Td>
-                    <Td className="text-sm">{formatDateTime(trip.departure_at)}</Td>
+                    <Td className="text-sm">
+                      <p>{formatDateTime(trip.departure_at)}</p>
+                      {trip.status === 'in_route' && trip.estimated_return && (
+                        <p className="text-[11px] font-semibold text-emerald-600 mt-0.5">
+                          🏁 Chegada: {new Date(trip.estimated_return).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}
+                        </p>
+                      )}
+                    </Td>
                     <Td>
                       <p className="font-mono text-sm">{formatMileage(trip.departure_mileage)}</p>
-                      {distance !== null && (
+                      {distance !== null ? (
                         <p className="text-xs text-slate-500">+{distance.toLocaleString('pt-BR')} km</p>
-                      )}
+                      ) : trip.estimated_distance_km ? (
+                        <p className="text-[11px] text-slate-400">est. ~{trip.estimated_distance_km} km</p>
+                      ) : null}
                     </Td>
                     <Td>
                       <span className={cn('inline-flex rounded-full border px-2.5 py-1 text-xs font-medium', TRIP_STATUS_COLORS[trip.status])}>

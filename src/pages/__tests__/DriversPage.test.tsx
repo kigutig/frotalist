@@ -11,6 +11,9 @@ vi.mock('../../lib/api', () => ({
     create: vi.fn(),
     update: vi.fn(),
   },
+  tripsApi: {
+    getAll: vi.fn().mockResolvedValue([]),
+  },
   usersApi: {
     getAll: vi.fn().mockResolvedValue([]),
   },

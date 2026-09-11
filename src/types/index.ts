@@ -85,6 +85,8 @@ export interface Trip {
   departure_mileage?: number
   return_mileage?: number
   estimated_return?: string
+  estimated_distance_km?: number
+  estimated_duration_minutes?: number
   deliveries_completed?: number
   deliveries_pending?: number
   pending_reason?: string
@@ -121,7 +123,11 @@ export interface Checklist {
   completed_at?: string
   released_at?: string
   mileage: number
+  origin?: string
   destination?: string
+  estimated_distance_km?: number
+  estimated_duration_minutes?: number
+  estimated_arrival?: string
   cargo_volumes?: number
   cargo_notes?: string
   notes?: string
@@ -390,7 +396,11 @@ export interface ChecklistFormState {
   truck_id: string
   driver_id: string
   mileage: number
+  origin?: string
   destination: string
+  estimated_distance_km?: number
+  estimated_duration_minutes?: number
+  estimated_arrival?: string
   notes: string
   // Items by category
   items: Record<string, CheckItemStatus>
