@@ -43,7 +43,8 @@ export async function fetchInternetDate(): Promise<InternetTimeResult> {
   // 1. Tenta Supabase REST (cabeçalho HTTP Date)
   try {
     const supabaseUrl =
-      (typeof import.meta !== 'undefined' && import.meta.env?.VITE_SUPABASE_URL) || ''
+      (typeof import.meta !== 'undefined' && import.meta.env?.VITE_SUPABASE_URL) ||
+      'https://api.supabase.co'
     const supabaseAnonKey =
       (typeof import.meta !== 'undefined' && import.meta.env?.VITE_SUPABASE_ANON_KEY) || ''
 
