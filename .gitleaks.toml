@@ -57,6 +57,7 @@ regexes = [
   '''hasDriverPassword''',
   '''driverHasPassword''',
   '''frotalist_network_time_offset_ms''',
+  '''photoKey''',
 ]
 paths = [
   '''\.env\.example''',

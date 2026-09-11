@@ -344,10 +344,10 @@ export function ChecklistDetailPage() {
           ) : (
             <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4">
               {photos.map((photo, idx) => {
-                const photoKey = photo.id || String(idx)
+                const photoId = photo.id || String(idx)
                 const rawSrc = photo.url || photo.storage_path || ''
                 const isBlob = rawSrc.trim().startsWith('blob:')
-                const isAvailable = isPersistentImageUrl(rawSrc) && !failedPhotos[photoKey]
+                const isAvailable = isPersistentImageUrl(rawSrc) && !failedPhotos[photoId]
                 const src = isAvailable ? sanitizeImageUrl(rawSrc) : ''
                 const label = PHOTO_TYPE_LABELS[photo.photo_type || ''] || 'Outro'
                 return (
@@ -364,7 +364,7 @@ export function ChecklistDetailPage() {
                             alt={photo.description || label}
                             className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-105"
                             loading="lazy"
-                            onError={() => setFailedPhotos((prev) => ({ ...prev, [photoKey]: true }))}
+                            onError={() => setFailedPhotos((prev) => ({ ...prev, [photoId]: true }))}
                           />
                           <div className="absolute inset-0 bg-black/0 group-hover:bg-black/20 transition-colors flex items-center justify-center">
                             <div className="opacity-0 group-hover:opacity-100 transition-opacity bg-white/90 rounded-full p-2 text-slate-800 shadow-md">
