@@ -6,7 +6,6 @@ import {
   Eye,
   EyeOff,
   ShieldCheck,
-  ShieldAlert,
   KeyRound,
   CheckCircle2,
   Navigation,
