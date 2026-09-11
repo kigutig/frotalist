@@ -15,10 +15,20 @@ import {
   Camera,
   Maximize2,
   X,
+  Route,
+  MapPin,
+  Navigation,
+  Clock,
+  Fuel,
+  Calendar,
+  Sparkles,
+  ShieldAlert,
+  Globe,
 } from 'lucide-react'
 import { Card, CardHeader, CardBody, Button } from '../../components/ui'
 import { checklistsApi } from '../../lib/api'
-import { CATEGORY_LABELS } from '../../lib/checklist-items'
+import { checkTruckRodizio } from '../../lib/rodizio'
+import { FIXED_DEPARTURE_ORIGIN } from '../../lib/route-calculator'
 import {
   CHECKLIST_STATUS_LABELS,
   CHECKLIST_STATUS_COLORS,
@@ -28,7 +38,7 @@ import {
   sanitizeImageUrl,
 } from '../../lib/utils'
 import { isPersistentImageUrl } from '../../lib/image-utils'
-import type { Checklist, ChecklistItem, ChecklistPhoto } from '../../types'
+import type { Checklist, ChecklistPhoto } from '../../types'
 
 const PHOTO_TYPE_LABELS: Record<string, string> = {
   front: '📷 Frontal',
@@ -40,6 +50,14 @@ const PHOTO_TYPE_LABELS: Record<string, string> = {
   panel: '🎛️ Painel',
   issue: '⚠️ Problema',
   other: '📸 Outro',
+}
+function formatDuration(minutes?: number | null): string {
+  if (!minutes || minutes <= 0) return '—'
+  const h = Math.floor(minutes / 60)
+  const m = Math.round(minutes % 60)
+  if (h === 0) return `${m} min`
+  if (m === 0) return `${h}h`
+  return `${h}h ${m}min`
 }
 
 export function ChecklistDetailPage() {
@@ -89,14 +107,6 @@ export function ChecklistDetailPage() {
   const notOkItems = items.filter((i) => i.status === 'not_ok')
   const naItems = items.filter((i) => i.status === 'na')
 
-  // Agrupar itens por categoria
-  const groupedItems: Record<string, ChecklistItem[]> = {}
-  items.forEach((item) => {
-    const cat = item.category || 'geral'
-    if (!groupedItems[cat]) groupedItems[cat] = []
-    groupedItems[cat].push(item)
-  })
-
   const statusClass = CHECKLIST_STATUS_COLORS[checklist.status] || 'bg-slate-100 text-slate-700'
 
   return (
@@ -127,9 +137,12 @@ export function ChecklistDetailPage() {
                       {CHECKLIST_STATUS_LABELS[checklist.status] || checklist.status}
                     </span>
                   </div>
-                  <p className="text-sm text-slate-500">
-                    Realizado em {formatDateTime(checklist.started_at)}
-                  </p>
+                  <div className="flex flex-wrap items-center gap-x-2.5 gap-y-1 text-sm text-slate-500 mt-0.5">
+                    <span>Realizado em {formatDateTime(checklist.started_at)}</span>
+                    <span className="inline-flex items-center gap-1 rounded bg-blue-50 px-2 py-0.5 text-2xs font-semibold text-blue-700 border border-blue-200">
+                      <Globe className="h-3 w-3" /> Horário Oficial (Internet)
+                    </span>
+                  </div>
                 </div>
               </div>
             </div>
@@ -219,6 +232,260 @@ export function ChecklistDetailPage() {
         </div>
       )}
 
+      {/* Resumo da Rota & Estimativa de Viagem */}
+      <Card className="overflow-hidden border-blue-200 shadow-sm">
+        <CardHeader className="bg-gradient-to-r from-blue-50/80 to-indigo-50/40 border-b border-blue-100">
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+            <div className="flex items-center gap-2.5">
+              <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-blue-600 text-white shadow-xs">
+                <Route className="h-5 w-5" />
+              </div>
+              <div>
+                <h3 className="font-bold text-slate-800 text-sm sm:text-base">
+                  Trajeto e Estimativa de Viagem
+                </h3>
+                <p className="text-xs text-slate-500">
+                  Cálculo automático de distância, duração prevista e consumo estimado de diesel
+                </p>
+              </div>
+            </div>
+            {checklist.estimated_distance_km ? (
+              <span className="inline-flex items-center gap-1.5 self-start sm:self-auto rounded-full bg-blue-100/80 px-3 py-1 text-xs font-bold text-blue-700 border border-blue-200">
+                <Sparkles className="h-3.5 w-3.5 text-blue-600" />
+                Rota Logística Calculada
+              </span>
+            ) : null}
+          </div>
+        </CardHeader>
+        <CardBody className="p-5 space-y-5">
+          {/* Origem e Destino com visual de trajeto */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {/* Origem */}
+            <div className="rounded-xl border border-slate-200 bg-slate-50/80 p-3.5 flex items-start gap-3">
+              <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-blue-600 text-white shrink-0 mt-0.5 shadow-xs">
+                <MapPin className="h-4 w-4" />
+              </div>
+              <div className="min-w-0 flex-1">
+                <div className="flex items-center justify-between">
+                  <span className="text-[11px] font-bold text-blue-700 uppercase tracking-wider">
+                    Ponto de Saída (Origem Fixa)
+                  </span>
+                  <span className="text-[10px] font-semibold text-slate-500 bg-white border border-slate-200 rounded px-1.5 py-0.5">
+                    Galpão 01
+                  </span>
+                </div>
+                <p className="text-sm font-bold text-slate-800 mt-0.5">
+                  Cotia / SP — Galpão Principal
+                </p>
+                <p className="text-xs text-slate-500 mt-0.5 leading-relaxed">
+                  {checklist.origin || FIXED_DEPARTURE_ORIGIN}
+                </p>
+              </div>
+            </div>
+
+            {/* Destino */}
+            <div className="rounded-xl border border-blue-200 bg-blue-50/40 p-3.5 flex items-start gap-3">
+              <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-indigo-600 text-white shrink-0 mt-0.5 shadow-xs">
+                <Navigation className="h-4 w-4" />
+              </div>
+              <div className="min-w-0 flex-1">
+                <div className="flex items-center justify-between">
+                  <span className="text-[11px] font-bold text-indigo-700 uppercase tracking-wider">
+                    Destino da Viagem
+                  </span>
+                  <span className="text-[10px] font-semibold text-indigo-700 bg-indigo-100 rounded px-1.5 py-0.5">
+                    Entrega
+                  </span>
+                </div>
+                <p className="text-sm font-bold text-slate-800 mt-0.5">
+                  {checklist.destination || 'Destino não informado'}
+                </p>
+                <p className="text-xs text-slate-500 mt-0.5">
+                  Local programado para entrega e prestação de serviço
+                </p>
+              </div>
+            </div>
+          </div>
+
+          {/* Métricas Estimadas: KM, Duração, ETA e Diesel */}
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+            <div className="rounded-xl border border-slate-200 bg-white p-3.5 shadow-xs">
+              <div className="flex items-center gap-1.5 text-slate-500 text-xs font-semibold uppercase tracking-wider mb-1.5">
+                <Route className="h-3.5 w-3.5 text-blue-600" />
+                <span>Distância Prevista</span>
+              </div>
+              <p className="text-xl font-bold text-slate-900">
+                {checklist.estimated_distance_km ? (
+                  <>
+                    {checklist.estimated_distance_km.toLocaleString('pt-BR')} <span className="text-xs font-medium text-slate-500">km</span>
+                  </>
+                ) : (
+                  '—'
+                )}
+              </p>
+              <p className="text-[11px] text-slate-400 mt-1">Malha viária calculada</p>
+            </div>
+
+            <div className="rounded-xl border border-slate-200 bg-white p-3.5 shadow-xs">
+              <div className="flex items-center gap-1.5 text-slate-500 text-xs font-semibold uppercase tracking-wider mb-1.5">
+                <Clock className="h-3.5 w-3.5 text-amber-600" />
+                <span>Tempo Estimado</span>
+              </div>
+              <p className="text-xl font-bold text-amber-900">
+                {formatDuration(checklist.estimated_duration_minutes)}
+              </p>
+              <p className="text-[11px] text-slate-400 mt-1">Velocidade média de carga</p>
+            </div>
+
+            <div className="rounded-xl border border-slate-200 bg-white p-3.5 shadow-xs">
+              <div className="flex items-center gap-1.5 text-slate-500 text-xs font-semibold uppercase tracking-wider mb-1.5">
+                <Calendar className="h-3.5 w-3.5 text-emerald-600" />
+                <span>Previsão de Chegada</span>
+              </div>
+              <p className="text-sm font-bold text-emerald-800 leading-snug">
+                {checklist.estimated_arrival ? (
+                  formatDateTime(checklist.estimated_arrival)
+                ) : (
+                  '—'
+                )}
+              </p>
+              <p className="text-[11px] text-slate-400 mt-1">Estimativa de chegada (ETA)</p>
+            </div>
+
+            <div className="rounded-xl border border-slate-200 bg-white p-3.5 shadow-xs">
+              <div className="flex items-center gap-1.5 text-slate-500 text-xs font-semibold uppercase tracking-wider mb-1.5">
+                <Fuel className="h-3.5 w-3.5 text-purple-600" />
+                <span>Diesel Estimado</span>
+              </div>
+              <p className="text-xl font-bold text-purple-900">
+                {checklist.estimated_distance_km ? (
+                  <>
+                    ~{Math.round(checklist.estimated_distance_km / 3.5)} <span className="text-xs font-medium text-slate-500">L</span>
+                  </>
+                ) : (
+                  '—'
+                )}
+              </p>
+              <p className="text-[11px] text-slate-400 mt-1">Méd. 3,5 km/l (veículo pesado)</p>
+            </div>
+          </div>
+
+          {/* Dados de Carga e Volumes (se informados) */}
+          {(checklist.cargo_volumes !== undefined && checklist.cargo_volumes !== null || checklist.cargo_notes) && (
+            <div className="rounded-xl border border-slate-200 bg-slate-50/70 p-3.5 text-xs space-y-1">
+              <div className="flex items-center gap-2 font-bold text-slate-700">
+                <span>📦 Detalhes da Carga Transportada</span>
+                {checklist.cargo_volumes !== undefined && checklist.cargo_volumes !== null && (
+                  <span className="rounded bg-slate-200 px-2 py-0.5 text-slate-800">
+                    {checklist.cargo_volumes} {checklist.cargo_volumes === 1 ? 'Volume / Palete' : 'Volumes / Paletes'}
+                  </span>
+                )}
+              </div>
+              {checklist.cargo_notes && (
+                <p className="text-slate-600 mt-1">{checklist.cargo_notes}</p>
+              )}
+            </div>
+          )}
+        </CardBody>
+      </Card>
+
+      {/* Regras e Alerta de Rodízio Municipal de Veículos Pesados (SP / ZMRC) */}
+      {(() => {
+        const truckPlate = checklist.truck?.plate || ''
+        const checkDate = checklist.started_at ? new Date(checklist.started_at) : new Date()
+        const rodizio = checkTruckRodizio(truckPlate, checkDate)
+
+        return (
+          <Card className={cn(
+            'border transition-all shadow-xs',
+            rodizio.isRodizioToday
+              ? rodizio.isTruckRestrictedNow
+                ? 'border-amber-400 bg-gradient-to-r from-amber-50 via-orange-50/50 to-white'
+                : 'border-amber-300 bg-amber-50/40'
+              : 'border-slate-200'
+          )}>
+            <CardHeader className="border-b border-slate-100">
+              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+                <div className="flex items-center gap-2.5">
+                  <div className={cn(
+                    'flex h-9 w-9 items-center justify-center rounded-xl',
+                    rodizio.isRodizioToday ? 'bg-amber-500 text-white' : 'bg-slate-100 text-slate-600'
+                  )}>
+                    <ShieldAlert className="h-5 w-5" />
+                  </div>
+                  <div>
+                    <h3 className="font-bold text-slate-800 text-sm sm:text-base">
+                      Rodízio Municipal de Veículos e Caminhões (CET-SP / ZMRC)
+                    </h3>
+                    <p className="text-xs text-slate-500">
+                      Monitoramento de restrição de tráfego na Região Metropolitana e Centro Expandido
+                    </p>
+                  </div>
+                </div>
+
+                <span className={cn(
+                  'inline-flex items-center gap-1.5 self-start sm:self-auto rounded-full px-3 py-1 text-xs font-bold border',
+                  rodizio.isRodizioToday
+                    ? rodizio.isTruckRestrictedNow
+                      ? 'bg-red-100 text-red-800 border-red-300 animate-pulse'
+                      : 'bg-amber-100 text-amber-900 border-amber-300'
+                    : 'bg-emerald-100 text-emerald-800 border-emerald-300'
+                )}>
+                  {rodizio.isRodizioToday
+                    ? (rodizio.isTruckRestrictedNow ? '⚠️ Restrição Ativa no Momento do Checklist' : '⚠️ Em Dia de Rodízio')
+                    : '✅ Veículo Livre de Rodízio'}
+                </span>
+              </div>
+            </CardHeader>
+            <CardBody className="p-5 space-y-4">
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 text-xs">
+                <div className="rounded-xl border border-slate-200 bg-white p-3 shadow-xs">
+                  <span className="text-slate-500 block mb-1">Dígito Final da Placa</span>
+                  <div className="flex items-baseline gap-2">
+                    <span className="text-2xl font-bold text-slate-800">
+                      {rodizio.lastDigit !== null ? rodizio.lastDigit : '—'}
+                    </span>
+                    <span className="text-xs font-mono text-slate-500 font-semibold">
+                      ({truckPlate || 'Placa n/d'})
+                    </span>
+                  </div>
+                </div>
+
+                <div className="rounded-xl border border-slate-200 bg-white p-3 shadow-xs">
+                  <span className="text-slate-500 block mb-1">Dia Oficial de Restrição</span>
+                  <p className="text-base font-bold text-slate-800 mt-1">
+                    {rodizio.rodizioDayName}
+                  </p>
+                  <p className="text-[11px] text-slate-400 mt-0.5">Baseado na legislação de SP</p>
+                </div>
+
+                <div className="rounded-xl border border-slate-200 bg-white p-3 shadow-xs">
+                  <span className="text-slate-500 block mb-1">Horário de Restrição para Caminhões</span>
+                  <p className="text-base font-bold text-amber-900 mt-1">
+                    05h00 às 21h00
+                  </p>
+                  <p className="text-[11px] text-slate-500 mt-0.5">ZMRC (Zona de Máxima Restrição)</p>
+                </div>
+              </div>
+
+              {rodizio.isRodizioToday && (
+                <div className="rounded-xl border border-amber-300 bg-amber-50/80 p-3.5 flex items-start gap-3 text-xs text-amber-950">
+                  <AlertTriangle className="h-5 w-5 text-amber-600 shrink-0 mt-0.5" />
+                  <div className="space-y-1">
+                    <p className="font-bold">
+                      Aviso aos Operadores e Motoristas de Frota
+                    </p>
+                    <p className="leading-relaxed text-amber-900">
+                      Este caminhão possui placa com final <strong>{rodizio.lastDigit}</strong>. Conforme as regras da CET-SP, caminhões estão proibidos de circular na <strong>Zona de Máxima Restrição de Circulação (ZMRC)</strong> das <strong>05h00 às 21h00</strong>. Certifique-se de que a rota utilize as vias liberadas (como Rodoanel) para evitar autuações de trânsito.
+                    </p>
+                  </div>
+                </div>
+              )}
+            </CardBody>
+          </Card>
+        )
+      })()}
+
       {/* Observações Gerais */}
       {checklist.notes && (
         <Card>
@@ -264,56 +531,6 @@ export function ChecklistDetailPage() {
           </CardBody>
         </Card>
       )}
-
-      {/* Detalhamento Completo dos Itens por Categoria */}
-      <Card>
-        <CardHeader>
-          <div className="flex items-center gap-2">
-            <ClipboardList className="h-5 w-5 text-blue-600" />
-            <h3 className="font-semibold text-slate-800">Itens Inspecionados por Categoria</h3>
-          </div>
-        </CardHeader>
-        <CardBody className="space-y-6">
-          {items.length === 0 ? (
-            <div className="py-8 text-center text-sm text-slate-400">
-              Nenhum item detalhado registrado neste checklist.
-            </div>
-          ) : (
-            Object.entries(groupedItems).map(([cat, catItems]) => (
-              <div key={cat} className="space-y-3">
-                <div className="flex items-center justify-between border-b pb-2">
-                  <h4 className="font-bold text-xs uppercase tracking-wider text-slate-600">
-                    {CATEGORY_LABELS[cat] || cat} ({catItems.length})
-                  </h4>
-                  <div className="flex gap-2 text-xs">
-                    <span className="text-green-600">{catItems.filter((i) => i.status === 'ok').length} OK</span>
-                    {catItems.filter((i) => i.status === 'not_ok').length > 0 && (
-                      <span className="text-red-600 font-bold">{catItems.filter((i) => i.status === 'not_ok').length} Não OK</span>
-                    )}
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
-                  {catItems.map((item) => (
-                    <div
-                      key={item.id || item.item_key}
-                      className="flex items-center justify-between rounded-lg border border-slate-100 bg-slate-50/50 p-2.5 text-xs"
-                    >
-                      <span className="font-medium text-slate-700 truncate pr-2">{item.item_label}</span>
-                      <span className={cn('rounded px-2 py-0.5 font-bold uppercase shrink-0',
-                        item.status === 'ok' ? 'bg-green-100 text-green-700' :
-                        item.status === 'not_ok' ? 'bg-red-100 text-red-700' : 'bg-slate-200 text-slate-600'
-                      )}>
-                        {item.status === 'ok' ? 'OK' : item.status === 'not_ok' ? 'NÃO OK' : 'N/A'}
-                      </span>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            ))
-          )}
-        </CardBody>
-      </Card>
 
       {/* Fotos Registradas */}
       <Card>
@@ -406,50 +623,29 @@ export function ChecklistDetailPage() {
         </CardBody>
       </Card>
 
-      {/* Assinaturas Digitais */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        {/* Assinatura Motorista */}
-        <Card>
-          <CardHeader>
+      {/* Assinatura Digital do Motorista (Autenticação) */}
+      <div className="max-w-xl mx-auto w-full">
+        <Card className="border-purple-200 shadow-sm">
+          <CardHeader className="border-b border-purple-100 bg-purple-50/40">
             <div className="flex items-center gap-2">
               <PenTool className="h-4 w-4 text-purple-600" />
-              <h3 className="font-semibold text-slate-800 text-sm">Assinatura do Motorista</h3>
+              <h3 className="font-semibold text-slate-800 text-sm">Assinatura Digital do Motorista</h3>
             </div>
           </CardHeader>
-          <CardBody className="p-4 flex flex-col items-center justify-center min-h-[140px] bg-slate-50">
+          <CardBody className="p-5 flex flex-col items-center justify-center min-h-[160px] bg-white">
             {checklist.driver_signature ? (
-              <img src={checklist.driver_signature} alt="Assinatura Motorista" className="max-h-24 object-contain" />
+              <img src={checklist.driver_signature} alt="Assinatura Motorista" className="max-h-28 object-contain" />
             ) : (
               <p className="text-xs text-slate-400 italic">Assinatura digital não anexada</p>
             )}
-            <p className="text-xs font-semibold text-slate-600 mt-2">
+            <p className="text-sm font-bold text-slate-700 mt-3">
               {checklist.driver?.name || 'Motorista'}
             </p>
             {checklist.driver_password_confirmed && (
-              <span className="mt-1.5 inline-flex items-center gap-1 rounded-full bg-emerald-50 px-2.5 py-0.5 text-2xs font-semibold text-emerald-700 border border-emerald-200">
-                <ShieldCheck className="h-3 w-3" /> Autenticado por senha própria
+              <span className="mt-2 inline-flex items-center gap-1.5 rounded-full bg-emerald-50 px-3 py-1 text-xs font-semibold text-emerald-700 border border-emerald-200 shadow-xs">
+                <ShieldCheck className="h-3.5 w-3.5 text-emerald-600" /> Autenticado com Senha Própria do Motorista
               </span>
             )}
-          </CardBody>
-        </Card>
-
-        {/* Assinatura Responsável */}
-        <Card>
-          <CardHeader>
-            <div className="flex items-center gap-2">
-              <PenTool className="h-4 w-4 text-blue-600" />
-              <h3 className="font-semibold text-slate-800 text-sm">Assinatura do Responsável</h3>
-            </div>
-          </CardHeader>
-          <CardBody className="p-4 flex flex-col items-center justify-center min-h-[140px] bg-slate-50">
-            {checklist.responsible_signature ? (
-              <img src={checklist.responsible_signature} alt="Assinatura Responsável" className="max-h-24 object-contain" />
-            ) : (
-              <p className="text-xs text-slate-400 italic">Assinatura digital não anexada</p>
-            )}
-            <p className="text-xs font-semibold text-slate-600 mt-2">
-              {checklist.responsible_name || 'Responsável pela Conferência'}
-            </p>
           </CardBody>
         </Card>
       </div>
@@ -514,3 +710,4 @@ export function ChecklistDetailPage() {
     </div>
   )
 }
+

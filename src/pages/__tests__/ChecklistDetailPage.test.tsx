@@ -197,4 +197,47 @@ describe('ChecklistDetailPage', () => {
     expect(screen.getByText(/Itens com Não Conformidade \/ Avarias \(1\)/i)).toBeInTheDocument()
     expect(screen.getByText(/Obs: Pneu com baixa pressão/i)).toBeInTheDocument()
   })
+
+  it('renders route details, rodizio info, and excludes categories and responsible signature', async () => {
+    vi.mocked(checklistsApi.getById).mockResolvedValue({
+      ...mockChecklist,
+      origin: 'Rua Soluções do Lar, 291 - GALPÃO 01 - Cotia - SP',
+      destination: 'São José dos Campos - SP',
+      estimated_distance_km: 115,
+      estimated_duration_minutes: 130,
+      estimated_arrival: '2026-09-04T12:10:00Z',
+      cargo_volumes: 14,
+      cargo_notes: 'Paletes de suprimentos industriais',
+    })
+
+    await act(async () => {
+      render(
+        <MemoryRouter initialEntries={['/checklists/ckl-123']}>
+          <Routes>
+            <Route path="/checklists/:id" element={<ChecklistDetailPage />} />
+          </Routes>
+        </MemoryRouter>
+      )
+    })
+
+    // Trajeto e estimativas
+    expect(screen.getByText('Trajeto e Estimativa de Viagem')).toBeInTheDocument()
+    expect(screen.getByText('São José dos Campos - SP')).toBeInTheDocument()
+    expect(screen.getByText(/115/)).toBeInTheDocument()
+    expect(screen.getByText(/2h 10min/)).toBeInTheDocument()
+    expect(screen.getByText('14 Volumes / Paletes')).toBeInTheDocument()
+    expect(screen.getByText('Paletes de suprimentos industriais')).toBeInTheDocument()
+
+    // Rodízio
+    expect(screen.getByText(/Rodízio Municipal de Veículos e Caminhões/i)).toBeInTheDocument()
+    expect(screen.getByText(/05h00 às 21h00/i)).toBeInTheDocument()
+
+    // Removed elements
+    expect(screen.queryByText(/Itens Inspecionados por Categoria/i)).not.toBeInTheDocument()
+    expect(screen.queryByText(/Assinatura do Responsável/i)).not.toBeInTheDocument()
+
+    // Driver signature remains
+    expect(screen.getByText(/Assinatura Digital do Motorista/i)).toBeInTheDocument()
+  })
 })
+
