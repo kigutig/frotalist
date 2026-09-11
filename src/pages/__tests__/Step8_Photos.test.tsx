@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { render, screen, fireEvent, act } from '@testing-library/react'
+import { render, screen, fireEvent, act, waitFor } from '@testing-library/react'
 import React from 'react'
 import { Step8_Photos } from '../checklists/steps/Step8_Photos'
 import type { ChecklistPhoto } from '../../types'
@@ -58,12 +58,14 @@ describe('Step8_Photos', () => {
       fireEvent.change(fileInput, { target: { files: [file] } })
     })
 
-    expect(onUpdateField).toHaveBeenCalledWith('photos', expect.arrayContaining([
-      expect.objectContaining({
-        description: 'Foto lateral avaria',
-        url: 'blob:http://localhost/mock-photo',
-      })
-    ]))
+    await waitFor(() => {
+      expect(onUpdateField).toHaveBeenCalledWith('photos', expect.arrayContaining([
+        expect.objectContaining({
+          description: 'Foto lateral avaria',
+          url: expect.any(String),
+        }),
+      ]))
+    })
   })
 
   it('renders existing photos and allows removing and updating description', async () => {

@@ -249,12 +249,14 @@ export function truncate(str: string, maxLength = 50): string {
 export function sanitizeImageUrl(url?: string | null): string {
   if (!url) return ''
   const trimmed = url.trim()
-  // Whitelist safe schemes: http, https, blob, data:image
+  if (trimmed.startsWith('data:image/')) {
+    return trimmed
+  }
+  // Whitelist safe schemes: http, https, blob
   if (
     trimmed.startsWith('https://') ||
     trimmed.startsWith('http://') ||
-    trimmed.startsWith('blob:') ||
-    trimmed.startsWith('data:image/')
+    trimmed.startsWith('blob:')
   ) {
     return encodeURI(trimmed)
   }

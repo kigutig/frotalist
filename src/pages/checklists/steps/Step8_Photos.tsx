@@ -1,7 +1,8 @@
 import { useState, useRef } from 'react'
-import { Camera, Upload, X } from 'lucide-react'
+import { Camera, Upload, X, Loader2 } from 'lucide-react'
 import { Button } from '../../../components/ui'
 import { sanitizeImageUrl } from '../../../lib/utils'
+import { fileToOptimizedDataUrl } from '../../../lib/image-utils'
 import type { StepProps } from './shared'
 import type { ChecklistPhoto } from '../../../types'
 
@@ -29,21 +30,33 @@ export function Step8_Photos({ form, onUpdateField, title, subtitle }: Step8Phot
   const fileInputRef = useRef<HTMLInputElement>(null)
   const [selectedType, setSelectedType] = useState<string>('front')
   const [selectedDescription, setSelectedDescription] = useState('')
+  const [isProcessing, setIsProcessing] = useState(false)
 
-  function handleFileSelect(e: React.ChangeEvent<HTMLInputElement>) {
+  async function handleFileSelect(e: React.ChangeEvent<HTMLInputElement>) {
     const files = Array.from(e.target.files ?? [])
-    const newPhotos = files.map((file) => ({
-      id: Math.random().toString(36).slice(2),
-      storage_path: URL.createObjectURL(file),
-      url: URL.createObjectURL(file),
-      photo_type: selectedType as ChecklistPhoto['photo_type'],
-      description: selectedDescription || file.name,
-      created_at: new Date().toISOString(),
-    }))
-    onUpdateField('photos', [...photos, ...newPhotos] as Partial<ChecklistPhoto>[])
-    setSelectedDescription('')
-    // reset input
-    if (fileInputRef.current) fileInputRef.current.value = ''
+    if (files.length === 0) return
+
+    setIsProcessing(true)
+    try {
+      const newPhotos: Partial<ChecklistPhoto>[] = []
+      for (const file of files) {
+        const optimizedUrl = await fileToOptimizedDataUrl(file)
+        newPhotos.push({
+          id: Math.random().toString(36).slice(2),
+          storage_path: optimizedUrl,
+          url: optimizedUrl,
+          photo_type: selectedType as ChecklistPhoto['photo_type'],
+          description: selectedDescription || file.name,
+          created_at: new Date().toISOString(),
+        })
+      }
+      onUpdateField('photos', [...photos, ...newPhotos] as Partial<ChecklistPhoto>[])
+      setSelectedDescription('')
+    } finally {
+      setIsProcessing(false)
+      // reset input
+      if (fileInputRef.current) fileInputRef.current.value = ''
+    }
   }
 
   function removePhoto(idx: number) {
@@ -122,31 +135,41 @@ export function Step8_Photos({ form, onUpdateField, title, subtitle }: Step8Phot
               onChange={handleFileSelect}
               className="hidden"
             />
-            <div className="flex gap-3">
-              <Button
-                variant="primary"
-                leftIcon={Camera}
-                onClick={() => {
-                  if (fileInputRef.current) {
-                    fileInputRef.current.setAttribute('capture', 'environment')
-                    fileInputRef.current.click()
-                  }
-                }}
-              >
-                Tirar Foto
-              </Button>
-              <Button
-                variant="outline"
-                leftIcon={Upload}
-                onClick={() => {
-                  if (fileInputRef.current) {
-                    fileInputRef.current.removeAttribute('capture')
-                    fileInputRef.current.click()
-                  }
-                }}
-              >
-                Galeria
-              </Button>
+            <div className="flex flex-col items-center gap-2">
+              <div className="flex gap-3">
+                <Button
+                  variant="primary"
+                  leftIcon={Camera}
+                  loading={isProcessing}
+                  onClick={() => {
+                    if (fileInputRef.current) {
+                      fileInputRef.current.setAttribute('capture', 'environment')
+                      fileInputRef.current.click()
+                    }
+                  }}
+                >
+                  Tirar Foto
+                </Button>
+                <Button
+                  variant="outline"
+                  leftIcon={Upload}
+                  loading={isProcessing}
+                  onClick={() => {
+                    if (fileInputRef.current) {
+                      fileInputRef.current.removeAttribute('capture')
+                      fileInputRef.current.click()
+                    }
+                  }}
+                >
+                  Galeria
+                </Button>
+              </div>
+              {isProcessing && (
+                <div className="flex items-center gap-1.5 text-xs text-blue-600 animate-pulse mt-1">
+                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                  <span>Otimizando imagem para envio seguro...</span>
+                </div>
+              )}
             </div>
           </div>
         </div>

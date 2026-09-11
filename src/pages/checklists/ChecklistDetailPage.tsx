@@ -27,6 +27,7 @@ import {
   cn,
   sanitizeImageUrl,
 } from '../../lib/utils'
+import { isPersistentImageUrl } from '../../lib/image-utils'
 import type { Checklist, ChecklistItem, ChecklistPhoto } from '../../types'
 
 const PHOTO_TYPE_LABELS: Record<string, string> = {
@@ -47,6 +48,7 @@ export function ChecklistDetailPage() {
   const [checklist, setChecklist] = useState<Checklist | null>(null)
   const [loading, setLoading] = useState(true)
   const [selectedPhoto, setSelectedPhoto] = useState<ChecklistPhoto | null>(null)
+  const [failedPhotos, setFailedPhotos] = useState<Record<string, boolean>>({})
 
   useEffect(() => {
     async function loadChecklist() {
@@ -342,7 +344,11 @@ export function ChecklistDetailPage() {
           ) : (
             <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4">
               {photos.map((photo, idx) => {
-                const src = sanitizeImageUrl(photo.url || photo.storage_path)
+                const photoKey = photo.id || String(idx)
+                const rawSrc = photo.url || photo.storage_path || ''
+                const isBlob = rawSrc.trim().startsWith('blob:')
+                const isAvailable = isPersistentImageUrl(rawSrc) && !failedPhotos[photoKey]
+                const src = isAvailable ? sanitizeImageUrl(rawSrc) : ''
                 const label = PHOTO_TYPE_LABELS[photo.photo_type || ''] || 'Outro'
                 return (
                   <div
@@ -350,18 +356,33 @@ export function ChecklistDetailPage() {
                     onClick={() => setSelectedPhoto(photo)}
                     className="group relative flex flex-col overflow-hidden rounded-xl border border-slate-200 bg-white shadow-xs transition-all hover:border-indigo-400 hover:shadow-md cursor-pointer"
                   >
-                    <div className="relative aspect-4/3 w-full overflow-hidden bg-slate-100">
-                      <img
-                        src={src}
-                        alt={photo.description || label}
-                        className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-105"
-                        loading="lazy"
-                      />
-                      <div className="absolute inset-0 bg-black/0 group-hover:bg-black/20 transition-colors flex items-center justify-center">
-                        <div className="opacity-0 group-hover:opacity-100 transition-opacity bg-white/90 rounded-full p-2 text-slate-800 shadow-md">
-                          <Maximize2 className="h-4 w-4" />
+                    <div className="relative aspect-4/3 w-full overflow-hidden bg-slate-100 flex items-center justify-center">
+                      {isAvailable && src ? (
+                        <>
+                          <img
+                            src={src}
+                            alt={photo.description || label}
+                            className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-105"
+                            loading="lazy"
+                            onError={() => setFailedPhotos((prev) => ({ ...prev, [photoKey]: true }))}
+                          />
+                          <div className="absolute inset-0 bg-black/0 group-hover:bg-black/20 transition-colors flex items-center justify-center">
+                            <div className="opacity-0 group-hover:opacity-100 transition-opacity bg-white/90 rounded-full p-2 text-slate-800 shadow-md">
+                              <Maximize2 className="h-4 w-4" />
+                            </div>
+                          </div>
+                        </>
+                      ) : (
+                        <div className="flex h-full w-full min-h-[120px] flex-col items-center justify-center bg-slate-100 p-3 text-center text-slate-400">
+                          <Camera className="mb-1.5 h-6 w-6 text-slate-300" />
+                          <span className="text-2xs font-semibold text-slate-600">
+                            {isBlob ? 'Sessão Expirada' : 'Foto Indisponível'}
+                          </span>
+                          <span className="text-[10px] text-slate-400 mt-0.5">
+                            {isBlob ? 'Gravada em sessão anterior' : 'Não foi possível carregar'}
+                          </span>
                         </div>
-                      </div>
+                      )}
                       <span className="absolute top-2 left-2 rounded-md bg-black/60 backdrop-blur-xs px-2 py-0.5 text-2xs font-semibold text-white">
                         {label}
                       </span>
@@ -461,12 +482,26 @@ export function ChecklistDetailPage() {
                 <X className="h-5 w-5" />
               </button>
             </div>
-            <div className="flex items-center justify-center p-2 bg-black/40">
-              <img
-                src={sanitizeImageUrl(selectedPhoto.url || selectedPhoto.storage_path)}
-                alt={selectedPhoto.description || 'Foto'}
-                className="max-h-[75vh] w-auto max-w-full object-contain rounded-lg"
-              />
+            <div className="flex items-center justify-center p-4 bg-black/40 min-h-[220px]">
+              {isPersistentImageUrl(selectedPhoto.url || selectedPhoto.storage_path) &&
+              !failedPhotos[selectedPhoto.id || ''] ? (
+                <img
+                  src={sanitizeImageUrl(selectedPhoto.url || selectedPhoto.storage_path)}
+                  alt={selectedPhoto.description || 'Foto'}
+                  className="max-h-[75vh] w-auto max-w-full object-contain rounded-lg"
+                  onError={() =>
+                    setFailedPhotos((prev) => ({ ...prev, [selectedPhoto.id || '']: true }))
+                  }
+                />
+              ) : (
+                <div className="flex flex-col items-center justify-center p-8 text-center text-slate-400">
+                  <Camera className="mb-2 h-10 w-10 text-slate-500" />
+                  <p className="text-sm font-medium text-slate-300">Foto Não Disponível</p>
+                  <p className="text-xs text-slate-500 mt-1 max-w-xs">
+                    Esta foto foi gravada em uma sessão anterior temporária local e não está mais acessível. Novas fotos enviadas ficam permanentemente salvas na nuvem.
+                  </p>
+                </div>
+              )}
             </div>
             {selectedPhoto.description && (
               <div className="border-t border-slate-800 px-4 py-2 text-center text-xs text-slate-400">
